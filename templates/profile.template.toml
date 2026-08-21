@@ -1,0 +1,45 @@
+# ── your page at NAME.at.diligentservices.io ─────────────────────────────────
+# Fill this in and send it to sam@diligentservices.io. Sam runs it through the
+# safety check and posts it. The [contact] block at the BOTTOM is the only
+# place a phone number belongs (it feeds your downloadable vCard) — the checker
+# bounces phone numbers, street addresses, and birthdays anywhere else, and
+# NOTE: everything below a [contact] line belongs to it, so it must stay last.
+
+name   = "Your Name"
+status = "claimed"
+
+# Two or three short words that describe you.
+tags   = ["Word", "Word", "Word"]
+
+# Optional headshot: put the file in atds/photos/ and name it here.
+photo  = "yourname.jpg"
+
+# A city or region is fine. A street address is not.
+location = "Somewhere, California"
+updated  = "2026-01-01"
+
+# Your page body. Plain text is fine. A little markdown works:
+#   ## Heading      - bullet      [link text](https://example.com)
+blurb = """
+## About me
+
+Write a few sentences about yourself here.
+
+## Anything else
+
+Add another section if you like, or delete this one.
+"""
+
+# Optional links.
+links = [
+  { label = "Diligent Services", url = "https://diligentservices.io" },
+  { label = "Email",             url = "mailto:you@diligentservices.io" },
+]
+
+# Deliberately-public business-card contact info — this feeds the vCard.
+# KEEP THIS TABLE LAST (TOML: every key after this line belongs to it).
+[contact]
+phone = "(424) 448-5200"
+email = "you@diligentservices.io"
+title = "Your Title"
+org   = "Diligent Services"

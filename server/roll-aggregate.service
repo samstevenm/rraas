@@ -1,0 +1,9 @@
+[Unit]
+Description=atds-roll-aggregate — fold rickroll beacons into leaderboard.json
+Documentation=https://github.com/samstevenm/ExMen26/blob/main/atds/REQUIREMENTS.md
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/exmen26/roll_aggregate.py
+TimeoutStartSec=60

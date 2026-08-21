@@ -1,0 +1,49 @@
+# Sam's page — sam.at.diligentservices.io
+# DRAFT (Astley, 2026-08-21) — review-gated, do not deploy before Sam's sign-off.
+
+name   = "Sam Myers"
+status = "claimed"
+tags   = ["Owner", "Integrator", "Recovering Submariner"]
+photo  = "sam-sketch.jpg"
+location = "Corona, California"
+updated  = "2026-08-21"
+
+blurb = """
+## About me
+
+I'm Sam. I run [Diligent Services](https://diligentservices.io), the spiritual 
+successor to/continuation of the construction company my
+parents founded in 2002. We design and install lighting, control, AV, and networks for
+homes and businesses in California, and then we stay on to keep them running.
+The staying-on is the part I like best.
+
+## How I got here
+
+I grew up on my dad's job sites learning the trade. I talked my way into a
+**FileMaker developer** job in high school, went back to construction, then
+spent six years in the Navy boiling water a few hundred feet underwater by
+splitting atoms, which is the Navy's roundabout way of making a submarine go.
+
+After the Navy I did a stint on **SpaceX**'s Dragon, spent about six years at
+**Lutron**, ran projects at **AHT Global**, and came home to the family
+company.
+
+## Why this page exists
+
+1. Business cards are forgettable. 
+2. A URL with my name in it is slightly less forgettable. [_citation needed_](https://sam.at.themyers.party)
+3. ??
+4. Profit
+"""
+
+links = [
+  { label = "Diligent Services", url = "https://diligentservices.io" },
+  { label = "GitHub",            url = "https://github.com/samstevenm" },
+  { label = "Email",             url = "mailto:sam@diligentservices.io" },
+]
+
+[contact]
+phone = "(424) 448-5200"
+email = "sam@diligentservices.io"
+title = "Owner"
+org   = "Diligent Services"

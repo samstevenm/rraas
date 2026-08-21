@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily cert-watchdog run (served-TLS expiry + broken-lane pager)
+
+[Timer]
+OnCalendar=*-*-* 09:15:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

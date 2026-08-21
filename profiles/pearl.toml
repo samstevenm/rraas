@@ -1,0 +1,41 @@
+# Pearl's page — pearl.at.diligentservices.io
+# DRAFT (Astley, 2026-08-21) — review-gated. Pearl should get a pass at her own
+# bio before this ships; kept short and factual on purpose.
+
+name   = "Pearl Myers"
+status = "claimed"
+tags   = ["Co-Owner", "Operations", "The Reason Things Ship"]
+photo  = "pearl-sketch.jpg"
+location = "Corona, California"
+updated  = "2026-08-21"
+
+blurb = """
+## About me
+
+I'm Pearl, co-owner of [Diligent Services](https://diligentservices.io). Sam
+and I run the company together: he lives in the racks and the programming, and
+I make sure the business behind them actually works, from proposals and
+scheduling to the books.
+
+## What I do
+
+Every project has two halves: the one on the wall and the one on paper. I own
+the paper half. If you've gotten a clean proposal, a straight answer about a
+timeline, or an invoice that made sense, that was probably me.
+
+## Why this page exists
+
+Business cards get lost and regular QR codes are boring. Save my
+contact below and reach out.
+"""
+
+links = [
+  { label = "Diligent Services", url = "https://diligentservices.io" },
+  { label = "Email",             url = "mailto:pearl@diligentservices.io" },
+]
+
+[contact]
+phone = "(424) 448-5200"
+email = "pearl@diligentservices.io"
+title = "Co-Owner"
+org   = "Diligent Services"

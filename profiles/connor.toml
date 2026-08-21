@@ -1,0 +1,40 @@
+# Connor's page — connor.at.diligentservices.io
+# DRAFT (Astley, 2026-08-21) — review-gated. Connor should get a pass at his
+# own bio before this ships; facts below are the ones on file.
+
+name   = "Connor McCullough"
+status = "claimed"
+tags   = ["Project Manager", "Lutron · Savant · PDK", "The Guy On Site"]
+photo  = "connor-sketch.jpg"
+location = "Corona, California"
+updated  = "2026-08-21"
+
+blurb = """
+## About me
+
+I'm Connor, a project manager at
+[Diligent Services](https://diligentservices.io). If your project has a rack to
+wire, a keypad to hang, or a punch list to close, there's a good chance I'll be
+on the ladder or laptop.
+
+## What I work on
+
+I'm **Lutron HomeWorks**, **Savant**, and **PDK** certified, and I work across the
+systems we install: lighting control, shades, AV, surveilance, access control, and the
+networks that hold it all together.
+
+## Why this page exists
+
+We didn't want to hand out generic cards or QRs at CEDIA, and figured a good 'ol rick-roll beats another card in your pocket. 
+Save my card below if we should talk.
+"""
+
+links = [
+  { label = "Diligent Services", url = "https://diligentservices.io" },
+  { label = "Email",             url = "mailto:connor@diligentservices.io" },
+]
+
+[contact]
+email = "connor@diligentservices.io"
+title = "Project Manager"
+org   = "Diligent Services"

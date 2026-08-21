@@ -1,0 +1,18 @@
+[Unit]
+Description=at-cert-watchdog — pages Sam–Jane DM when a served TLS cert nears expiry or a lane breaks
+Documentation=https://github.com/samstevenm/ExMen26/blob/main/atds/REQUIREMENTS.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+# /etc/exmen26/env carries MATTERMOST_THEMYERS_TOKEN on this box (seeded
+# 2026-07-25 for http-error-watchdog; root 0600) — verified 2026-08-21, it is
+# the exact variable cert_watchdog.py reads.
+EnvironmentFile=/etc/exmen26/env
+WorkingDirectory=/opt/exmen26
+ExecStart=/usr/bin/python3 /opt/exmen26/cert_watchdog.py \
+  --hosts at.diligentservices.io,sam.at.diligentservices.io,connor.at.diligentservices.io,pearl.at.diligentservices.io,nobody.at.diligentservices.io \
+  --state /var/lib/exmen26/at-cert-watchdog-state.json
+TimeoutStartSec=180
