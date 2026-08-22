@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+_SCRIPTS = Path(__file__).resolve().parents[1] / "atds" / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
@@ -206,6 +206,16 @@ def test_qr_pages_emitted_for_claimed_and_apex(tmp_path):
     assert "<svg" in qr and f"https://sam.at.{APEX}/" in qr
     assert not (out / "qr").exists()                 # no bare-host QR (no roster)
     assert not (out / "ghost" / "qr").exists()       # unclaimed: no QR
+
+
+def test_rickroll_federation_tab_is_textcontent_only(tmp_path):
+    rc, out = _build(tmp_path, {"sam": _profile_toml("sam")})
+    rr = (out / "rickroll" / "index.html").read_text()
+    assert 'id="tab-rr"' in rr and "rickroll.win/leaderboard.json" in rr
+    # federated names are attacker-adjacent: the loader must never innerHTML
+    load = rr.split("function loadRR")[1]
+    assert "innerHTML" not in load
+    assert "textContent" in load
 
 
 def test_skip_qr_builds_without_qr_pages(tmp_path):
