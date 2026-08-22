@@ -3,3 +3,5 @@ tokens*.txt
 seed*.sql
 labels/
 *.secret
+.wrangler/
+local/

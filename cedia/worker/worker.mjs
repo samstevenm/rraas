@@ -291,8 +291,8 @@ async function admin(req, env) {
 // ---- templates --------------------------------------------------------------
 
 function preRoll(env, codename, first) {
-  const embed = `https://www.youtube-nocookie.com/embed/${RICK}` +
-    "?autoplay=1&mute=1&start=0&end=10&controls=0&playsinline=1&rel=0&enablejsapi=1";
+  const embed = `https://www.youtube.com/embed/${RICK}` +
+    "?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1&origin=" + env.SITE_ORIGIN;
   const f = escapeHtml(first);
   return `
 <div id="preroll" hidden>
@@ -366,7 +366,7 @@ function playerPage(env, row, photosKilled) {
     <div class="extnet"><strong>${escapeHtml(first)}</strong> is in the network now</div>
     <div class="box warm"><h2>Dossier</h2><div class="pad"><p>${escapeHtml(row.bio) || "No comment."}</p></div></div>
     <p class="tease">Share this page. Every visitor you roll is a point.
-    <a href="/leaderboard.html">The scoreboard</a>.</p>
+    <a href="/leaderboard">The scoreboard</a>.</p>
   </div>
 </div>
 <footer><p><a href="https://diligentservices.io/">a Diligent Services thing</a></p></footer>
@@ -455,7 +455,7 @@ async function flag(env, name) {
   return row && row.value === "1";
 }
 
-function html(body) {
+function html(body, status = 200) {
   return new Response(
     `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -463,7 +463,7 @@ function html(body) {
 <link rel="stylesheet" href="/rr26.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
 </head><body>${body}</body></html>`,
-    { headers: { "content-type": "text/html; charset=utf-8", ...SEC_HEADERS } });
+    { status, headers: { "content-type": "text/html; charset=utf-8", ...SEC_HEADERS } });
 }
 
 function json(obj, status = 200) {
@@ -478,5 +478,5 @@ function snarky404() {
   return html(`<main><h1>There is no page here.</h1>
 <p class="tease">If a card brought you here, check the code — first claim wins.
 If you typed this URL hoping to find something: respect, but no.</p>
-<footer><p>you do not talk about RACK &amp; ROLL</p></footer></main>`);
+<footer><p>you do not talk about RACK &amp; ROLL</p></footer></main>`, 404);
 }

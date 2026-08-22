@@ -6,6 +6,11 @@
 name = "rr26"
 main = "worker.mjs"
 compatibility_date = "2026-08-01"
+workers_dev = false
+routes = [
+  { pattern = "rickroll.win", custom_domain = true },
+  { pattern = "www.rickroll.win", custom_domain = true },
+]
 
 # With a binding configured, the Worker runs first and falls through to
 # assets via env.ASSETS.fetch — exactly what the router expects.
@@ -16,16 +21,15 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "rr26"
-database_id = "FILLME"
+database_id = "278d8863-d4d3-4b18-a945-4dcae654dbec"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "FILLME"
+id = "1e9fa46fefca4cfaaaef8b17fbc991cd"
 
 [vars]
 SITE_ORIGIN = "https://rickroll.win"
 DS_ORIGIN = "https://rickroll.at.diligentservices.io"
-TURNSTILE_SITEKEY = "FILLME"
+TURNSTILE_SITEKEY = "0x4AAAAAAEYGoMeDPsSSYYEP"
 
-# custom domain is attached at deploy:
-#   wrangler deploy && (dashboard or API) route: rickroll.win/* -> rr26
+
