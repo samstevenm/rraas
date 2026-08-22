@@ -53,6 +53,17 @@ form textarea { min-height:6rem; }
 .lb th { background:var(--box); color:#fff; text-transform:uppercase;
          font-size:0.8rem; letter-spacing:0.08em; }
 .lb .n { text-align:right; font-variant-numeric:tabular-nums; }
+#qrbox { display:none; position:fixed; inset:0; z-index:98;
+         background:rgba(8,6,14,0.92); align-items:center; justify-content:center;
+         padding:1rem; }
+#qrbox.show { display:flex; }
+.qrcard { background:#fff; color:#14121a; border:3px solid var(--hdr2);
+          padding:1rem; max-width:min(90vw,26rem); text-align:center; }
+.qrcard .qrimg { width:min(78vw,20rem); margin:0 auto 0.6rem; }
+.qrcard .qrimg svg { display:block; width:100%; height:auto; }
+.qrcard p { margin:0.4rem 0; }
+.qrcard .muted { color:#655; word-break:break-all; }
+.qrcard .btn { margin-top:0.5rem; }
 #preroll { display:none; position:fixed; inset:0; z-index:99;
            background:rgba(8,6,14,0.95); align-items:center; justify-content:center;
            flex-direction:column; padding:1rem; text-align:center; }

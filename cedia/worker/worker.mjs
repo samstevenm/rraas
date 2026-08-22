@@ -8,6 +8,7 @@ import {
   BIO_MAX, PHOTO_MAX_BYTES, cleanBio, cleanDisplay, cleanEmail, escapeHtml,
   identicon, makeVcard, normToken, rollKey, sniffJpeg, utcDay, CODENAME_RE,
 } from "./lib.mjs";
+import { qrSvg } from "./qr.mjs";
 
 const RICK = "dQw4w9WgXcQ";
 const ROLL_CAP_PER_IP_DAY = 3;      // rolls one IP can score per codename/day
@@ -17,6 +18,10 @@ const SEC_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
 };
+
+// Bare paths served straight from static assets (no DB lookup). Everything
+// else that isn't a file (no ".") is treated as a code to resolve.
+const ASSET_PATHS = new Set(["", "leaderboard", "admin", "index"]);
 
 export default {
   async fetch(req, env, ctx) {
@@ -37,15 +42,18 @@ export default {
       if (p.startsWith("/@")) return playerRoutes(req, env, p.slice(2));
       if (p.startsWith("/photo/")) return photo(env, p.slice(7));
       if (p.startsWith("/avatar/")) return avatar(p.slice(8));
-      // /word-pair or /i/word-pair — multi-scan, single-claim: scanning is
-      // free forever, only a successful claim spends the code.
-      const rawTok = p.startsWith("/i/") ? p.slice(3) : p.slice(1);
-      const tok = normToken(rawTok);
-      if (tok) return invite(env, tok);
-      // a hyphenated path that isn't a valid code, or any /i/... miss, is a
-      // dead end; single-word paths fall through to static assets.
-      if (p.startsWith("/i/") || p.slice(1).includes("-")) return snarky404();
-      return env.ASSETS.fetch(req);
+      if (p.startsWith("/qr/")) return qrRoute(env, p.slice(4));
+      // Static assets keep a fast path (no DB): the root, anything with a file
+      // extension, and the handful of named pages.
+      const seg = p.slice(1);
+      if (p === "/" || seg.includes(".") || ASSET_PATHS.has(seg)) {
+        return env.ASSETS.fetch(req);
+      }
+      // Everything else is treated as a code: a word-pair, a 10-char token, or
+      // a codename (the crew seeds have token != codename). invite() resolves
+      // any of those and snarky-404s a real miss. /i/<code> is an alias.
+      const raw = seg.startsWith("i/") ? seg.slice(2) : seg;
+      return invite(env, raw);
     } catch (e) {
       return new Response("the rack fell over. try again.", { status: 500 });
     }
@@ -112,20 +120,55 @@ async function maybeStartSeason(env) {
 
 // ---- invite / claim ---------------------------------------------------------
 
-async function invite(env, token) {
-  const row = await env.DB.prepare(
-    "SELECT codename, inviter, claimed_at FROM tokens WHERE token = ?"
-  ).bind(token).first();
+async function invite(env, raw) {
+  const row = await resolveEntry(env, raw);
   if (!row) return snarky404();
   if (row.claimed_at) {
     return Response.redirect(`${env.SITE_ORIGIN}/@${row.codename}`, 302);
   }
+  const token = row.token;
   // claimed players feed the "who roped you in?" autocomplete (fuzzy-findable
   // by codename or display name)
   const players = await env.DB.prepare(
     "SELECT codename, display FROM tokens WHERE claimed_at IS NOT NULL AND hidden = 0 ORDER BY display"
   ).all();
-  return html(claimPage(env, token, row, players.results || []));
+  // no-store: the claim page must reflect live claimed/unclaimed state — a
+  // cached copy could show the form for a code someone already claimed.
+  return html(claimPage(env, token, row, players.results || []),
+    200, { "cache-control": "no-store" });
+}
+
+// Resolve a pasted string to a row by TOKEN or CODENAME, tolerant of format:
+// word-pair ("photon-rack"), 10-char crew token ("3J5BXDSGZ5"), a codename
+// that differs from its token, and any casing. This is why a crew member can
+// paste their codename OR their code and land on their page either way.
+async function resolveEntry(env, raw) {
+  const wp = normToken(raw);                                        // word-pair
+  const up = String(raw || "").toUpperCase().replace(/[^0-9A-Z]/g, ""); // token
+  const low = String(raw || "").trim().toLowerCase();              // codename
+  const cands = [...new Set([wp, up, low].filter(Boolean))];
+  if (!cands.length) return null;
+  const ph = cands.map(() => "?").join(",");
+  return env.DB.prepare(
+    `SELECT token, codename, inviter, claimed_at FROM tokens
+     WHERE token IN (${ph}) OR codename IN (${ph}) LIMIT 1`
+  ).bind(...cands, ...cands).first();
+}
+
+// /qr/<codename> -> SVG QR of that player's page (for anyone who wants the
+// image directly). The player page also inlines its own QR, so this is a
+// convenience/fallback, cached hard at the edge.
+async function qrRoute(env, rest) {
+  const codename = rest.endsWith(".svg") ? rest.slice(0, -4) : rest;
+  if (!CODENAME_RE.test(codename)) return snarky404();
+  const svg = qrSvg(`${env.SITE_ORIGIN}/@${codename}`);
+  return new Response(svg, {
+    headers: {
+      "content-type": "image/svg+xml; charset=utf-8",
+      "cache-control": "public, max-age=86400",
+      ...SEC_HEADERS,
+    },
+  });
 }
 
 // Best-effort: resolve a typed referrer to a real claimed codename. Exact
@@ -548,6 +591,8 @@ function plink(p) {
 function playerPage(env, row, photosKilled, lineage) {
   const name = escapeHtml(row.display);
   const first = row.display.split(" ")[0];
+  const pageUrl = `${env.SITE_ORIGIN}/@${row.codename}`;
+  const qr = qrSvg(pageUrl);
   const img = (row.has_photo && !photosKilled)
     ? `<img src="/photo/${row.codename}.jpg" alt="${name}">`
     : `<img src="/avatar/${row.codename}.svg" alt="avatar">`;
@@ -581,14 +626,21 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
     <div class="box"><h2>The chain</h2><div class="pad">${upline}${kids}${reach}</div></div>
     <div class="box warm"><h2>Roll the world</h2><div class="pad">
       <p>Every new visitor to your page eats ten seconds of Rick and scores you a
-      point. So send it &mdash; text it, AirDrop it, drop it in your signature.</p>
-      <p><button class="btn" id="share" type="button">&#128279; Share my page</button>
-      <span class="muted" id="shared" hidden>&nbsp;copied to clipboard</span></p>
+      point. Send it, or show your QR and let someone roll themselves.</p>
+      <p><button class="btn" id="share" type="button">&#128279; Share</button>
+      <button class="btn" id="qrbtn" type="button">&#9783; Show QR</button>
+      <span class="muted" id="shared" hidden>&nbsp;copied</span></p>
       <p class="muted"><a href="/leaderboard">The scoreboard</a> &middot;
       <a href="/stats">how it&#39;s spreading</a></p>
     </div></div>
   </div>
 </div>
+<div id="qrbox"><div class="qrcard">
+  <div class="qrimg">${qr}</div>
+  <p>Point a phone camera here. They land on <strong>your</strong> page and get rolled.</p>
+  <p class="muted">${escapeHtml(pageUrl)}</p>
+  <button class="btn" id="qrclose" type="button">close</button>
+</div></div>
 <footer><p><a href="https://diligentservices.io/">a Diligent Services thing</a></p></footer>
 </main>
 <script>
@@ -605,6 +657,13 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
       navigator.clipboard.writeText(url).then(flash, flash);
     } else { flash(); }
   });
+  var box = document.getElementById("qrbox");
+  var qb = document.getElementById("qrbtn"), qc = document.getElementById("qrclose");
+  if (box && qb) {
+    qb.addEventListener("click", function () { box.classList.add("show"); });
+    qc.addEventListener("click", function () { box.classList.remove("show"); });
+    box.addEventListener("click", function (e) { if (e.target === box) box.classList.remove("show"); });
+  }
 })();
 </script>${preRoll(env, row.codename, first)}`;
 }
@@ -779,8 +838,11 @@ function cheat() {
 }
 
 function snarky404() {
+  // no-store: a 404 must never get cached at the edge and then mask a code
+  // that later becomes valid (e.g. a page reachable after a fix or a claim).
   return html(`<main><h1>There is no page here.</h1>
 <p class="tease">If a card brought you here, check the code — first claim wins.
 If you typed this URL hoping to find something: respect, but no.</p>
-<footer><p>you do not talk about RACK &amp; ROLL</p></footer></main>`, 404);
+<footer><p>you do not talk about RACK &amp; ROLL</p></footer></main>`, 404,
+    { "cache-control": "no-store" });
 }
