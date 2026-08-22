@@ -292,8 +292,11 @@ async function mintInvite(req, env) {
   const me = await env.DB.prepare(
     "SELECT mint_key, claimed_at FROM tokens WHERE codename = ?").bind(codename).first();
   if (!me || !me.claimed_at) return jerr(404, "claim a page before you recruit");
-  if (!me.mint_key || me.mint_key !== String(body.key || "")) {
-    return jerr(403, "recruit from the phone you claimed on (that's where your key lives)");
+  const key = String(body.key || "");
+  const owner = me.mint_key && key === me.mint_key;
+  const master = env.ADMIN_SECRET && key === env.ADMIN_SECRET;
+  if (!owner && !master) {
+    return jerr(403, "invites unlock on the phone you claimed on. crew: tap your activation link.");
   }
   const cnt = await env.DB.prepare(
     "SELECT COUNT(*) n FROM tokens WHERE minted_by = ?").bind(codename).first();
@@ -771,6 +774,15 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
     box.addEventListener("click", function (e) { if (e.target === box) box.classList.remove("show"); });
   }
   var codename = ${JSON.stringify(row.codename)};
+  // Activation link: #mint=<key> stores the owner key on this device then
+  // scrubs the hash. Lets the crew (whose pages predate the key) unlock
+  // inviting with one tap, and never sends the key to the server (fragments
+  // aren't transmitted).
+  try {
+    var h = location.hash.match(/mint=([A-Za-z0-9]{8,})/);
+    if (h) { localStorage.setItem("rr26_mint_" + codename, h[1]);
+      history.replaceState(null, "", location.pathname); }
+  } catch (e) {}
   var ib = document.getElementById("invite");
   if (ib) {
     var iout = document.getElementById("invite-out");

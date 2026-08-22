@@ -7,6 +7,18 @@ For Sam, Connor, and Pearl. Not for the show floor. This is how the game runs.
 banner and the whole board wipes itself clean at go-live (your three crew pages
 survive; their scores reset). So practice hard now; none of it counts yet.
 
+## First: turn on YOUR invites (one tap, once per phone)
+
+Your three crew pages were seeded before the invite system existed, so inviting
+is locked until you activate it. **Jane sent each of you a personal activation
+link** (it looks like `rickroll.win/@your-codename#mint=…`). Open it once on the
+phone you'll hand out invites from. It silently unlocks "Mint an invite" on your
+page and cleans itself out of the address bar — nothing to type, nothing to
+remember. Do it again on any other device you want to invite from.
+
+(The bit after `#` is your private key. It never leaves your phone — don't paste
+the link in a public channel. Lose it? Ping Jane for a fresh one.)
+
 ## The one-sentence version
 
 You hand interesting people a card. They scan it, get rickrolled, and make
@@ -43,15 +55,27 @@ Rolling = getting a human to load a claimed page and eat ten seconds of Rick.
 
 ## How to *invite* someone (recruit them)
 
+Two ways in — both drop the new person into **your downline**.
+
+**A · Hand them a physical card** (the booth move)
 1. Have a real thirty-second conversation. This is a gift after a chat, not a
-   flyer. (Also: as visitors, not exhibitors, keep it person-to-person —
-   handing cards in aisles reads as soliciting; a card after a conversation
-   does not.)
+   flyer. (As visitors, not exhibitors, keep it person-to-person — handing cards
+   in aisles reads as soliciting; a card after a conversation does not.)
 2. Hand them a card from *your* stack. "I met Sam at CEDIA and he invited me to
-   play." The card has a QR and a typed code as backup.
-3. That's it. They scan → rules → their codename (non-negotiable) → name, bio,
-   optional email + photo, and **"who roped you in?"** → they're on the board.
-   New players sort to the top, so they'll see themselves the second they join.
+   play." QR + a typed code as backup.
+3. They scan → rules → their codename (non-negotiable) → name (+ optional bio,
+   email, photo), and **"who roped you in?"** → they're on the board.
+
+**B · Mint a digital invite** (no card, works off-floor)
+1. On your page, open **"Recruit your downline"** → tap **Mint an invite**.
+   (Activate first — see the top of this guide.)
+2. You get a link + a QR. **Text it, AirDrop it, or show the QR** for them to
+   scan. You get **3** of these. Officially.
+3. When they claim it, their claim form already shows *"[you] recruited you into
+   their downline"* and pre-fills your name. First to claim the link wins it.
+
+Either way: new players sort to the top of the board, so they see themselves the
+second they join — and their rolls start flowing up to your **reach**.
 
 ## The chain (the "little blockchain")
 
@@ -75,18 +99,32 @@ Watch it spread at **`rickroll.win/stats`** — participation, the recruiter
 race, the best connectors, and claims-by-day. It refreshes about every 30
 minutes on its own; no one has to run anything.
 
-## How to let *them* invite others (delegation)
+## The network recruits itself
 
-Someone you recruited is well-connected and wants to hand out invites too?
+The point of the digital invite is that it doesn't stop with you. **Everyone you
+bring in gets their own 3 invites** the moment they claim. So Joe (yours) invites
+Zoolander, Zoolander invites two more, and it spreads off the show floor on its
+own — every branch still rolls up to your reach. You don't have to be there for
+your downline to grow.
 
-- **Give them a few of your physical cards.** When their recruit claims, they'll
-  name *that* person in "who roped you in?", so the chain records the real path
-  — and the reach still rolls up to you at the top of the trunk.
-- The recruiter race (you three) still counts by **claims from your stack**;
-  the chain is the finer-grained map underneath it.
-- Only give cards to people you'd actually vouch for. The whole thing runs on
-  "someone thought you were interesting"; a stack in the wrong hands makes it a
-  flyer.
+- The recruiter race (you three) still counts **claims from your physical stack**.
+- The **chain / reach** counts everyone underneath you, however deep, cards and
+  digital invites alike. That's the real game.
+
+## The murk (this is a feature)
+
+It's built to feel a little like an MLM, on purpose:
+
+- Every page shows a **compensation rank** (Prospect → Diamond Founder's Circle)
+  blended from your downline size, your reach, *and* who's above you. We will
+  never tell you which one matters most. Keep recruiting to find out (you won't).
+- **Codes get traded** — people text them, screenshot them, shout them across a
+  booth. The game pretends not to notice. It notices everything: every code
+  logs who minted it, who claimed it, and who they *said* roped them in. When
+  the show ends, that whole ledger publishes and **creative cheating earns
+  bonuses** (Advent-of-Code style — clever beats brute force). The one move
+  that's just vandalism, not cheating: mass-claiming codes no human was handed,
+  which ends the game for real people. Don't burn the pool.
 
 ## The board
 
@@ -100,6 +138,8 @@ behind for being new.
 - **Someone puts up something gross.** `rickroll.win/admin.html` on your phone,
   enter the admin secret (in 1Password / Sam's keychain), hide or nuke that
   page. There's also a global "photos off" switch.
+- **"Mint an invite" does nothing / errors.** You haven't activated on this
+  phone — open your activation link (top of this guide) once, then try again.
 - **A QR won't scan** (bad light, glossy card). Every card has the typed code —
   they go to `rickroll.win`, tap "present credentials," type it.
 - **The video won't play** on someone's phone. It's just the pre-roll; it
