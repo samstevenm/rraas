@@ -22,6 +22,11 @@ export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const p = url.pathname;
+    // Canonical host: rackroll.win (the typo domain) and www both 301 here,
+    // so every card/QR resolves to one place no matter what people type.
+    if (url.hostname !== "rickroll.win") {
+      return Response.redirect("https://rickroll.win" + p + url.search, 301);
+    }
     try {
       if (p === "/leaderboard.json") return leaderboard(req, env);
       if (p === "/roll.gif") return roll(req, env, ctx);
@@ -220,7 +225,8 @@ async function leaderboard(req, env) {
             COALESCE(SUM(r.count), 0) AS rolls
      FROM tokens t LEFT JOIN rolls r ON r.codename = t.codename
      WHERE t.claimed_at IS NOT NULL AND t.hidden = 0
-     GROUP BY t.codename ORDER BY rolls DESC, t.codename`).all();
+     GROUP BY t.codename
+     ORDER BY rolls DESC, t.claimed_at DESC, t.codename`).all();
   const recruiters = await env.DB.prepare(
     `SELECT inviter, COUNT(claimed_at) AS claims, COUNT(*) AS invitations
      FROM tokens GROUP BY inviter`).all();
