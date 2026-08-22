@@ -24,7 +24,7 @@ Look someone up: `... --command "SELECT codename,display,inviter,hidden FROM tok
 Someone fat-fingered their claim, or you want a card reusable:
 ```
 bash tools/cfrun.sh wrangler d1 execute rr26 --remote -y --command \
- "UPDATE tokens SET claimed_at=NULL,display=NULL,bio=NULL,company=NULL,email=NULL,has_photo=0,busted=0 WHERE token='photon-rack'; DELETE FROM rolls WHERE codename='photon-rack';"
+ "UPDATE tokens SET claimed_at=NULL,display=NULL,bio=NULL,company=NULL,email=NULL,has_photo=0,busted=0,parent=NULL WHERE token='photon-rack'; DELETE FROM rolls WHERE codename='photon-rack';"
 ```
 (If they'd uploaded a photo, also nuke the page once via admin.html — that clears the stored image.)
 
@@ -50,7 +50,7 @@ bash tools/cfrun.sh wrangler d1 execute rr26 --remote -y --command "DELETE FROM 
 Wipes every claim + every roll; the 900 codes stay unclaimed and reusable:
 ```
 bash tools/cfrun.sh wrangler d1 execute rr26 --remote -y --command \
- "UPDATE tokens SET claimed_at=NULL,display=NULL,bio=NULL,company=NULL,email=NULL,has_photo=0,busted=0; DELETE FROM rolls;"
+ "UPDATE tokens SET claimed_at=NULL,display=NULL,bio=NULL,company=NULL,email=NULL,has_photo=0,busted=0,parent=NULL; DELETE FROM rolls;"
 ```
 Then re-seed the three crew pages if you want them back:
 `python3 tools/... ` — or just ping Jane.
@@ -68,6 +68,15 @@ bash tools/cfrun.sh wrangler d1 execute rr26 --remote -y --command \
 900 is a lot (you printed ~100 each). If you somehow burn through them, ping
 Jane to mint + seed a fresh batch — it needs a careful append so it can't
 collide with codes already claimed.
+
+## Watch it spread (read-only)
+`rickroll.win/stats` — participation, recruiter race, best connectors (who
+roped in the most), and claims-by-day. It's edge-cached ~30 min, so it updates
+itself; nothing to run. Test codes (`test-*`) are excluded from it. Each
+player's profile shows their own chain (who brought them, who they brought,
+and their reach). The `parent` column in `tokens` is the codename who roped
+them in — the un-claim commands above clear it so a re-circulated card starts
+chainless.
 
 ## Health check anytime (read-only, safe during the show)
 ```

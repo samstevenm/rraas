@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS tokens (
   company     TEXT,                      -- optional
   email       TEXT,                      -- optional; the business payload + their vCard
   has_photo   INTEGER NOT NULL DEFAULT 0,
+  parent      TEXT,                       -- codename who roped them in (the chain)
   hidden      INTEGER NOT NULL DEFAULT 0,  -- kill switch (per page)
   busted      INTEGER NOT NULL DEFAULT 0,  -- the "definitely not curl" badge
   event       TEXT NOT NULL DEFAULT 'cedia-2026'  -- seasons, if The Game survives
@@ -30,3 +31,4 @@ CREATE TABLE IF NOT EXISTS flags (
   name  TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_tokens_parent ON tokens(parent);

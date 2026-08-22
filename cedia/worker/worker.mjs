@@ -29,6 +29,7 @@ export default {
     }
     try {
       if (p === "/leaderboard.json") return leaderboard(req, env);
+      if (p === "/stats") return stats(env);
       if (p === "/cheat") return cheat();
       if (p === "/roll.gif") return roll(req, env, ctx);
       if (p === "/api/claim" && req.method === "POST") return claim(req, env);
@@ -61,7 +62,37 @@ async function invite(env, token) {
   if (row.claimed_at) {
     return Response.redirect(`${env.SITE_ORIGIN}/@${row.codename}`, 302);
   }
-  return html(claimPage(env, token, row));
+  // claimed players feed the "who roped you in?" autocomplete (fuzzy-findable
+  // by codename or display name)
+  const players = await env.DB.prepare(
+    "SELECT codename, display FROM tokens WHERE claimed_at IS NOT NULL AND hidden = 0 ORDER BY display"
+  ).all();
+  return html(claimPage(env, token, row, players.results || []));
+}
+
+// Best-effort: resolve a typed referrer to a real claimed codename. Exact
+// codename wins; else a unique fuzzy hit on codename OR display name. Never
+// throws and never blocks a claim — a bad/blank referrer just means no parent
+// (a "lone wolf"). Can't self-parent; can't parent an unclaimed page (so the
+// chain is always a tree rooted at a real, earlier claim — no cycles).
+async function resolveParent(env, raw, selfToken) {
+  const slug = normToken(raw);
+  const needle = String(raw || "").trim().toLowerCase();
+  if (!needle) return null;
+  if (slug) {
+    const exact = await env.DB.prepare(
+      "SELECT codename FROM tokens WHERE codename = ? AND claimed_at IS NOT NULL AND hidden = 0 AND codename != ?"
+    ).bind(slug, selfToken).first();
+    if (exact) return exact.codename;
+  }
+  const like = "%" + needle.replace(/[%_]/g, "") + "%";
+  const hits = await env.DB.prepare(
+    `SELECT codename FROM tokens
+     WHERE claimed_at IS NOT NULL AND hidden = 0 AND codename != ?
+       AND (codename LIKE ? OR lower(display) LIKE ?) LIMIT 2`
+  ).bind(selfToken, like, like).all();
+  const rows = hits.results || [];
+  return rows.length === 1 ? rows[0].codename : null;   // ambiguous -> none
 }
 
 async function claim(req, env) {
@@ -92,6 +123,8 @@ async function claim(req, env) {
   const email = cleanEmail(body.email);
   if (email === null) return jerr(400, "that email doesn't parse");
 
+  const parent = body.parent ? await resolveParent(env, body.parent, token) : null;
+
   let hasPhoto = 0;
   let photoBytes = null;
   if (body.photo) {
@@ -109,9 +142,9 @@ async function claim(req, env) {
   // here no matter what the client said. Pages are immutable after this.
   const res = await env.DB.prepare(
     `UPDATE tokens SET claimed_at = datetime('now'), display = ?, bio = ?,
-       company = ?, email = ?, has_photo = ?
+       company = ?, email = ?, has_photo = ?, parent = ?
      WHERE token = ? AND claimed_at IS NULL`
-  ).bind(display, bio, company, email || "", hasPhoto, token).run();
+  ).bind(display, bio, company, email || "", hasPhoto, parent, token).run();
   if (!res.meta || res.meta.changes !== 1) {
     return jerr(409, "already claimed. first scan wins; that's rule zero");
   }
@@ -131,7 +164,7 @@ async function playerRoutes(req, env, rest) {
   if (!CODENAME_RE.test(codename)) return snarky404();
   const row = await env.DB.prepare(
     `SELECT codename, inviter, display, bio, company, email, has_photo, hidden,
-            busted, claimed_at FROM tokens WHERE codename = ?`
+            busted, claimed_at, parent FROM tokens WHERE codename = ?`
   ).bind(codename).first();
   if (!row || !row.claimed_at || row.hidden) return snarky404();
   if (wantVcf) {
@@ -148,7 +181,39 @@ async function playerRoutes(req, env, rest) {
     });
   }
   const photosKilled = await flag(env, "photos_killed");
-  return html(playerPage(env, row, photosKilled));
+  const lineage = await getLineage(env, row);
+  return html(playerPage(env, row, photosKilled, lineage));
+}
+
+// The chain: who roped you in, who you brought, and your "reach" (rolls across
+// your whole downline). Reach is the perceived bonus for being on a real chain
+// early — the trunk accumulates every descendant's rolls; a lone wolf who
+// skipped attribution only ever counts their own.
+async function getLineage(env, row) {
+  let parent = null;
+  if (row.parent) {
+    parent = await env.DB.prepare(
+      "SELECT codename, display FROM tokens WHERE codename = ? AND claimed_at IS NOT NULL AND hidden = 0"
+    ).bind(row.parent).first();
+  }
+  const kids = await env.DB.prepare(
+    "SELECT codename, display FROM tokens WHERE parent = ? AND claimed_at IS NOT NULL AND hidden = 0 ORDER BY claimed_at"
+  ).bind(row.codename).all();
+  // recursive downline (self + descendants), then sum their rolls
+  const sub = await env.DB.prepare(
+    `WITH RECURSIVE line(codename) AS (
+       SELECT ? UNION
+       SELECT t.codename FROM tokens t JOIN line l ON t.parent = l.codename
+       WHERE t.claimed_at IS NOT NULL AND t.hidden = 0)
+     SELECT (SELECT COUNT(*) FROM line) - 1 AS downline,
+            COALESCE((SELECT SUM(count) FROM rolls WHERE codename IN (SELECT codename FROM line)), 0) AS reach`
+  ).bind(row.codename).first();
+  return {
+    parent,
+    children: kids.results || [],
+    downline: sub ? sub.downline : 0,
+    reach: sub ? sub.reach : 0,
+  };
 }
 
 async function photo(env, name) {
@@ -225,12 +290,18 @@ async function countRoll(req, env, codename) {
 
 async function leaderboard(req, env) {
   const players = await env.DB.prepare(
-    `SELECT t.codename, t.display, t.inviter, t.busted,
+    `SELECT t.codename, t.display, t.inviter, t.busted, t.parent,
             COALESCE(SUM(r.count), 0) AS rolls
      FROM tokens t LEFT JOIN rolls r ON r.codename = t.codename
      WHERE t.claimed_at IS NOT NULL AND t.hidden = 0
      GROUP BY t.codename
      ORDER BY rolls DESC, t.claimed_at DESC, t.codename`).all();
+  const kidRows = await env.DB.prepare(
+    `SELECT parent, COUNT(*) AS c FROM tokens
+     WHERE parent IS NOT NULL AND claimed_at IS NOT NULL AND hidden = 0
+     GROUP BY parent`).all();
+  const kids = {};
+  for (const k of (kidRows.results || [])) kids[k.parent] = k.c;
   const recruiters = await env.DB.prepare(
     `SELECT inviter, COUNT(claimed_at) AS claims, COUNT(*) AS invitations
      FROM tokens GROUP BY inviter`).all();
@@ -247,6 +318,8 @@ async function leaderboard(req, env) {
       inviter: r.inviter,
       rolls: r.rolls,
       busted: !!r.busted,
+      parent: r.parent || null,
+      downline: kids[r.codename] || 0,
     })),
     recruiters: recruiters.results || [],
     unclaimed_invitations: unclaimed ? unclaimed.n : 0,
@@ -261,6 +334,65 @@ async function leaderboard(req, env) {
       ...SEC_HEADERS,
     },
   });
+}
+
+// ---- stats (how it propagates) ---------------------------------------------
+// Cached 30 min at the edge — the "periodic update" without a cron. Recomputed
+// on the first request after the cache lapses.
+
+async function stats(env) {
+  const c = await env.DB.prepare(
+    `SELECT COUNT(*) total,
+            SUM(CASE WHEN claimed_at IS NOT NULL THEN 1 ELSE 0 END) claimed,
+            SUM(CASE WHEN claimed_at IS NOT NULL AND parent IS NOT NULL THEN 1 ELSE 0 END) in_chain
+     FROM tokens WHERE token NOT LIKE 'test-%'`).first();
+  const rec = await env.DB.prepare(
+    `SELECT inviter, COUNT(claimed_at) claims FROM tokens
+     WHERE token NOT LIKE 'test-%' GROUP BY inviter ORDER BY claims DESC`).all();
+  const connectors = await env.DB.prepare(
+    `SELECT p.display, p.codename, COUNT(*) kids FROM tokens t
+     JOIN tokens p ON p.codename = t.parent
+     WHERE t.claimed_at IS NOT NULL AND t.hidden = 0
+       AND t.token NOT LIKE 'test-%' AND p.token NOT LIKE 'test-%'
+     GROUP BY t.parent ORDER BY kids DESC LIMIT 10`).all();
+  const daily = await env.DB.prepare(
+    `SELECT substr(claimed_at,1,10) d, COUNT(*) n FROM tokens
+     WHERE claimed_at IS NOT NULL AND token NOT LIKE 'test-%'
+     GROUP BY d ORDER BY d`).all();
+
+  const t = c || { total: 0, claimed: 0, in_chain: 0 };
+  const pct = t.claimed ? Math.round((t.in_chain / t.claimed) * 100) : 0;
+  const recRows = (rec.results || []).map((r) =>
+    `<tr><td>${escapeHtml(r.inviter)}</td><td class="n">${r.claims}</td></tr>`).join("");
+  const conRows = (connectors.results || []).length
+    ? (connectors.results).map((r) =>
+        `<tr><td><a href="/@${encodeURIComponent(r.codename)}">${escapeHtml(r.display || r.codename)}</a></td><td class="n">${r.kids}</td></tr>`).join("")
+    : `<tr><td colspan="2">no chains yet — nobody's roped anyone in</td></tr>`;
+  const dayRows = (daily.results || []).map((r) =>
+    `<tr><td>${escapeHtml(r.d)}</td><td class="n">${r.n}</td></tr>`).join("");
+
+  const bodyHtml = `<main>
+<p class="masthead">RACK &amp; ROLL '26 &middot; how it's spreading</p>
+<h1>The propagation</h1>
+<div class="box warm"><h2>Right now</h2><div class="pad">
+<p><strong>${t.claimed}</strong> claimed of ${t.total} codes &middot;
+<strong>${t.in_chain}</strong> joined someone's chain (${pct}%) &middot;
+the rest are roots or lone wolves.</p>
+<p class="muted">Updates every ~30 minutes.</p></div></div>
+<div class="box"><h2>Recruiter race</h2><div class="pad">
+<table class="lb"><thead><tr><th>Recruiter</th><th class="n">Claims</th></tr></thead>
+<tbody>${recRows}</tbody></table></div></div>
+<div class="box"><h2>Best connectors (most roped in)</h2><div class="pad">
+<table class="lb"><thead><tr><th>Player</th><th class="n">Brought in</th></tr></thead>
+<tbody>${conRows}</tbody></table>
+<p class="muted">reach (rolls across a whole downline) shows on each profile.</p></div></div>
+<div class="box"><h2>Claims by day</h2><div class="pad">
+<table class="lb"><thead><tr><th>Day</th><th class="n">New players</th></tr></thead>
+<tbody>${dayRows}</tbody></table></div></div>
+<footer><p><a href="/leaderboard">the scoreboard</a> &middot;
+<a href="https://diligentservices.io/">a Diligent Services thing</a></p></footer>
+</main>`;
+  return html(bodyHtml, 200, { "cache-control": "public, max-age=1800" });
 }
 
 // ---- admin (phone-usable; secret in 1P) ------------------------------------
@@ -350,7 +482,11 @@ function preRoll(env, codename, first) {
 </script>`;
 }
 
-function playerPage(env, row, photosKilled) {
+function plink(p) {
+  return `<a href="/@${encodeURIComponent(p.codename)}">${escapeHtml(p.display || p.codename)}</a>`;
+}
+
+function playerPage(env, row, photosKilled, lineage) {
   const name = escapeHtml(row.display);
   const first = row.display.split(" ")[0];
   const img = (row.has_photo && !photosKilled)
@@ -361,6 +497,14 @@ function playerPage(env, row, photosKilled) {
     : "";
   const busted = row.busted
     ? `<p class="busted">&#9888; definitely not curl</p>` : "";
+  const ln = lineage || { parent: null, children: [], downline: 0, reach: 0 };
+  const upline = ln.parent
+    ? `<p>Roped in by ${plink(ln.parent)}.</p>`
+    : `<p class="muted">Lone wolf &mdash; nobody roped you in. No chain, no bonus. (You can&#39;t change it now.)</p>`;
+  const kids = ln.children.length
+    ? `<p>Brought in (${ln.children.length}): ${ln.children.map(plink).join(" &middot; ")}</p>`
+    : `<p class="muted">You haven&#39;t roped anyone in yet. Hand out a code and tell them to name you.</p>`;
+  const reach = `<p class="tease">Reach: <strong>${ln.reach}</strong> ${ln.reach === 1 ? "roll" : "rolls"} across a downline of <strong>${ln.downline}</strong>. The original chains run deepest.</p>`;
   return `<main>
 <p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
 <h1>${name}</h1>
@@ -375,17 +519,21 @@ function playerPage(env, row, photosKilled) {
   <div class="col-r">
     <div class="extnet"><strong>${escapeHtml(first)}</strong> is in the network now</div>
     <div class="box warm"><h2>Dossier</h2><div class="pad"><p>${escapeHtml(row.bio) || "No comment."}</p></div></div>
+    <div class="box"><h2>The chain</h2><div class="pad">${upline}${kids}${reach}</div></div>
     <p class="tease">Share this page. Every visitor you roll is a point.
-    <a href="/leaderboard">The scoreboard</a>.</p>
+    <a href="/leaderboard">The scoreboard</a> &middot; <a href="/stats">how it&#39;s spreading</a>.</p>
   </div>
 </div>
 <footer><p><a href="https://diligentservices.io/">a Diligent Services thing</a></p></footer>
 </main>${preRoll(env, row.codename, first)}`;
 }
 
-function claimPage(env, token, row) {
+function claimPage(env, token, row, players) {
   const inviter = escapeHtml(row.inviter);
   const codename = escapeHtml(row.codename);
+  const options = (players || []).map((p) =>
+    `<option value="${escapeHtml(p.display || p.codename)}">${escapeHtml(p.codename)}</option>`
+  ).join("");
   return `<main>
 <p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
 <h1>You're in. Sort of.</h1>
@@ -405,12 +553,23 @@ It is not negotiable.</p>
   <label>Company <input name="company" maxlength="60" placeholder="optional"></label>
   <label>Email <input name="email" type="email" maxlength="120"
     placeholder="optional — so we can taunt you when you lose"></label>
+  <label>Who roped you in? <input name="referrer" list="players" maxlength="60"
+    placeholder="start typing their name — you join their chain">
+    <span class="muted">optional, but joining a chain beats going it alone (that's where the reach bonus lives)</span></label>
+  <datalist id="players">${options}</datalist>
   <label class="photo-label">Photo <input name="photo" type="file" accept="image/*">
     <span class="muted">optional; you get a pixel avatar either way</span></label>
   <div class="cf-turnstile" data-sitekey="${escapeHtml(env.TURNSTILE_SITEKEY || "")}"></div>
   <button type="submit" class="btn">Claim the codename &rarr;</button>
   <p id="claim-err" class="busted" hidden></p>
 </form>
+</div></div>
+<div class="box"><h2>The fine print (such as it is)</h2><div class="pad">
+<p class="muted">This is a game. It runs on a lark and a $10 domain. We make no
+promises about your data, its handling, or how long any of this lives &mdash;
+put nothing here you'd mind seeing on a screen at a trade show. We encourage
+silliness and ask only that you stay in the spirit of good fun. Be excellent to
+each other.</p>
 </div></div>
 <footer><p>first successful claim wins &middot; scans are free forever &middot; The Game ends when we say it ends. It has not ended.</p></footer>
 </main>
@@ -431,6 +590,7 @@ It is not negotiable.</p>
           token: ${JSON.stringify(token)},
           display: fd.get("display"), bio: fd.get("bio"),
           company: fd.get("company"), email: fd.get("email"),
+          parent: fd.get("referrer"),
           photo: photoDataUrl || "",
           turnstile: (form.querySelector('[name="cf-turnstile-response"]') || {}).value || ""
         })
@@ -479,7 +639,7 @@ const SRC_WINK = `<!--
   -- the management
 -->`;
 
-function html(body, status = 200) {
+function html(body, status = 200, extraHeaders = {}) {
   return new Response(
     `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 ${SRC_WINK}
@@ -488,7 +648,7 @@ ${SRC_WINK}
 <link rel="stylesheet" href="/rr26.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
 </head><body>${body}</body></html>`,
-    { status, headers: { "content-type": "text/html; charset=utf-8", ...SEC_HEADERS } });
+    { status, headers: { "content-type": "text/html; charset=utf-8", ...SEC_HEADERS, ...extraHeaders } });
 }
 
 function json(obj, status = 200) {
