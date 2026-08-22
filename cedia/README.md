@@ -1,9 +1,11 @@
 # RACK & ROLL '26 — the CEDIA invitational
 
-The ephemeral, invite-only layer on top of [RRaaS](../README.md), built for
-CEDIA Expo 2026 and hosted at **rickroll.win** until the show ends, at which
-point the domain dies and the final scoreboard is committed here forever.
-That's not a bug; that's rule 4.
+The invite-only layer on top of [RRaaS](../README.md), born at CEDIA Expo
+2026 and hosted at **rickroll.win**. It runs like The Game: knowing about it
+means you're playing it, and it ends when we say it ends. (It has not ended.)
+CEDIA 2026 is season one — the schema carries an `event` column so future
+shows can be future seasons; if it ever does end, the final scoreboard gets
+committed here forever.
 
 ## How it works
 
@@ -56,9 +58,10 @@ wrangler deploy
 # then: python3 ../tools/make_labels.py --domain RICKROLL.WIN
 ```
 
-Teardown is the same list in reverse, plus committing
-`2026-results.json` from `/leaderboard.json` so the scoreboard outlives the
-game.
+Teardown (IF The Game ever ends — Sam's call, not the calendar's) is the
+same list in reverse, plus committing `2026-results.json` from
+`/leaderboard.json` so the scoreboard outlives the game. Roadmap if it gets
+traction: player-issued invitations, per-event seasons on the leaderboard.
 
 ## The one unskippable step
 

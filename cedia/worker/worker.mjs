@@ -383,7 +383,7 @@ function claimPage(env, token, row) {
 <li>You do not talk about RACK &amp; ROLL.</li>
 <li>You DO share your page.</li>
 <li>Cheating is a form of playing.</li>
-<li>The domain dies when the show does.</li>
+<li>Knowing about RACK &amp; ROLL means you are playing RACK &amp; ROLL. You just lost, by the way.</li>
 <li>Nobody here is their khakis.</li>
 </ol></div></div>
 <div class="box"><h2>Your dossier</h2><div class="pad">
@@ -402,7 +402,7 @@ It is not negotiable.</p>
   <p id="claim-err" class="busted" hidden></p>
 </form>
 </div></div>
-<footer><p>first successful claim wins &middot; scans are free forever</p></footer>
+<footer><p>first successful claim wins &middot; scans are free forever &middot; The Game ends when we say it ends. It has not ended.</p></footer>
 </main>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>

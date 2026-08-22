@@ -75,7 +75,7 @@ fetch("/leaderboard.json", {cache: "no-store"})
     document.getElementById("lb-extra").textContent =
       "unclaimed invitations: " + d.unclaimed_invitations + " — cowards.";
     document.getElementById("lb-updated").textContent =
-      "counted as of " + d.updated + " · cheating is a form of playing, and we can tell";
+      "counted as of " + d.updated + " · cheating is a form of playing, and we can tell · The Game ends when we say it ends. It has not ended.";
   })
   .catch(function () {
     document.getElementById("lb-body").textContent = "the scoreboard is sulking. refresh.";
