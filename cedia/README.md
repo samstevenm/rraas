@@ -92,6 +92,22 @@ same list in reverse, plus committing `2026-results.json` from
 `/leaderboard.json` so the scoreboard outlives the game. Roadmap if it gets
 traction: player-issued invitations, per-event seasons on the leaderboard.
 
+
+## rackroll.win (typo domain) redirect
+
+`rackroll.win` 301s to `rickroll.win`, path preserved. NOT a Worker custom
+domain — that path failed (pre-existing DNS conflict; CF rolled the binding
+back). Reproduce via the dashboard on the **rackroll.win** zone:
+
+1. DNS: proxied A record, `@` -> `192.0.2.1` (TEST-NET, never routes; proxied
+   so the edge terminates and the rule fires before any origin).
+2. Rules -> Redirect Rules -> Create -> template "Redirect to a different
+   domain": match `http.host eq "rackroll.win"`, Dynamic 301 to
+   `concat("https://rickroll.win", http.request.uri.path)`, preserve query.
+
+(Test with `--resolve rackroll.win:443:<CF-IP>` — a stale local NXDOMAIN cache
+will otherwise say the host won't resolve while dig sees it fine.)
+
 ## The one unskippable step
 
 Print ONE sheet of labels and scan-test with three phones in bad light before
