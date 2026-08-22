@@ -73,3 +73,18 @@ test("vcard escapes separators, crlf", () => {
 test("utcDay shape", () => {
   assert.match(utcDay(0), /^1970-01-01$/);
 });
+
+test("normToken: rejects >4 parts, collapses double hyphen", () => {
+  assert.equal(normToken("a-b-c-d-e"), null);
+  assert.equal(normToken("photon--rack"), "photon-rack");
+});
+
+test("rollKey: deterministic, varies by input, prefixed", async () => {
+  const { rollKey } = await import("../worker/lib.mjs");
+  const a = await rollKey("1.2.3.4", "photon-rack", "2026-09-02");
+  assert.equal(a, await rollKey("1.2.3.4", "photon-rack", "2026-09-02"));
+  assert.notEqual(a, await rollKey("1.2.3.5", "photon-rack", "2026-09-02"));
+  assert.notEqual(a, await rollKey("1.2.3.4", "spectral-truss", "2026-09-02"));
+  assert.notEqual(a, await rollKey("1.2.3.4", "photon-rack", "2026-09-03"));
+  assert.match(a, /^r1:[0-9a-f]{32}$/);
+});
