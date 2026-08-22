@@ -13,10 +13,19 @@ import { qrSvg } from "./qr.mjs";
 const RICK = "dQw4w9WgXcQ";
 const ROLL_CAP_PER_IP_DAY = 3;      // rolls one IP can score per codename/day
 const BUSTED_TRIPWIRE = 50;         // raw hits/IP/day before the curl badge
+const INVITE_CAP = 3;               // invites a player may MINT (the official number)
+
+function randHex(n) {
+  return [...crypto.getRandomValues(new Uint8Array(n))]
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 const SEC_HEADERS = {
   "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "no-referrer",
+  // origin-only (not full path): private enough for our public codenames, and
+  // crucially it lets YouTube see the embedding origin — no-referrer stripped
+  // it entirely and YouTube answered the pre-roll with error 153.
+  "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
 // Bare paths served straight from static assets (no DB lookup). Everything
@@ -38,6 +47,7 @@ export default {
       if (p === "/cheat") return cheat();
       if (p === "/roll.gif") return roll(req, env, ctx);
       if (p === "/api/claim" && req.method === "POST") return claim(req, env);
+      if (p === "/api/invite" && req.method === "POST") return mintInvite(req, env);
       if (p === "/api/admin" && req.method === "POST") return admin(req, env);
       if (p.startsWith("/@")) return playerRoutes(req, env, p.slice(2));
       if (p.startsWith("/photo/")) return photo(env, p.slice(7));
@@ -150,7 +160,7 @@ async function resolveEntry(env, raw) {
   if (!cands.length) return null;
   const ph = cands.map(() => "?").join(",");
   return env.DB.prepare(
-    `SELECT token, codename, inviter, claimed_at FROM tokens
+    `SELECT token, codename, inviter, claimed_at, minted_by FROM tokens
      WHERE token IN (${ph}) OR codename IN (${ph}) LIMIT 1`
   ).bind(...cands, ...cands).first();
 }
@@ -224,7 +234,16 @@ async function claim(req, env) {
   const email = cleanEmail(body.email);
   if (email === null) return jerr(400, "that email doesn't parse");
 
-  const parent = body.parent ? await resolveParent(env, body.parent, token) : null;
+  // Chain parent: what the claimer typed wins; otherwise, if a player MINTED
+  // this code for them, they default into that player's downline. (They can
+  // still name someone else — that mismatch is exactly the provenance we log.)
+  let parent = body.parent ? await resolveParent(env, body.parent, token) : null;
+  if (!parent) {
+    const m = await env.DB.prepare(
+      "SELECT minted_by FROM tokens WHERE token = ?").bind(token).first();
+    if (m && m.minted_by) parent = m.minted_by;
+  }
+  const mintKey = randHex(16); // owner secret: gates minting from this device
 
   let hasPhoto = 0;
   let photoBytes = null;
@@ -243,9 +262,9 @@ async function claim(req, env) {
   // here no matter what the client said. Pages are immutable after this.
   const res = await env.DB.prepare(
     `UPDATE tokens SET claimed_at = datetime('now'), display = ?, bio = ?,
-       company = ?, email = ?, has_photo = ?, parent = ?
+       company = ?, email = ?, has_photo = ?, parent = ?, mint_key = ?
      WHERE token = ? AND claimed_at IS NULL`
-  ).bind(display, bio, company, email || "", hasPhoto, parent, token).run();
+  ).bind(display, bio, company, email || "", hasPhoto, parent, mintKey, token).run();
   if (!res.meta || res.meta.changes !== 1) {
     return jerr(409, "already claimed. first scan wins; that's rule zero");
   }
@@ -254,7 +273,54 @@ async function claim(req, env) {
   if (hasPhoto) {
     await env.KV.put(`photo:${row.codename}`, photoBytes.buffer);
   }
-  return json({ ok: true, page: `${env.SITE_ORIGIN}/@${row.codename}` });
+  return json({
+    ok: true, page: `${env.SITE_ORIGIN}/@${row.codename}`,
+    codename: row.codename, mintKey,
+  });
+}
+
+// Mint an invite: a claimed player pulls a fresh code from the pool into their
+// own downline. Gated by the mint_key handed to them at claim (so only the
+// person who claimed can mint, from the device they claimed on). Capped at
+// INVITE_CAP — "officially". Out-of-band code sharing is not blocked; it's
+// logged (minted_by stays the origin, parent records who the claimer names).
+async function mintInvite(req, env) {
+  let body;
+  try { body = await req.json(); } catch { return jerr(400, "bad json"); }
+  const codename = String(body.codename || "");
+  if (!CODENAME_RE.test(codename)) return jerr(400, "who are you again?");
+  const me = await env.DB.prepare(
+    "SELECT mint_key, claimed_at FROM tokens WHERE codename = ?").bind(codename).first();
+  if (!me || !me.claimed_at) return jerr(404, "claim a page before you recruit");
+  if (!me.mint_key || me.mint_key !== String(body.key || "")) {
+    return jerr(403, "recruit from the phone you claimed on (that's where your key lives)");
+  }
+  const cnt = await env.DB.prepare(
+    "SELECT COUNT(*) n FROM tokens WHERE minted_by = ?").bind(codename).first();
+  if ((cnt ? cnt.n : 0) >= INVITE_CAP) {
+    return json({
+      ok: false, capped: true,
+      error: `You've minted your ${INVITE_CAP}. Officially, that's the limit. ` +
+        `If a code reaches someone another way, we're not the police. (We are, ` +
+        `however, keeping the receipts.)`,
+    });
+  }
+  // Atomic allocate: grab one unclaimed, unminted code for this player.
+  const alloc = await env.DB.prepare(
+    `UPDATE tokens SET minted_by = ?, minted_at = datetime('now')
+     WHERE token IN (
+       SELECT token FROM tokens
+       WHERE claimed_at IS NULL AND minted_by IS NULL
+       ORDER BY token LIMIT 1)
+     RETURNING token`).bind(codename).first();
+  if (!alloc || !alloc.token) {
+    return json({ ok: false, error: "the invite drawer is empty. recruit the old-fashioned way: say a code out loud." });
+  }
+  const url = `${env.SITE_ORIGIN}/${alloc.token}`;
+  return json({
+    ok: true, code: alloc.token, url, qr: qrSvg(url),
+    left: INVITE_CAP - ((cnt ? cnt.n : 0) + 1),
+  });
 }
 
 // ---- player pages -----------------------------------------------------------
@@ -535,8 +601,12 @@ async function admin(req, env) {
 // ---- templates --------------------------------------------------------------
 
 function preRoll(env, codename, first) {
-  const embed = `https://www.youtube.com/embed/${RICK}` +
-    "?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1&origin=" + env.SITE_ORIGIN;
+  // youtube-nocookie = the privacy-enhanced embed domain (no tracking cookie
+  // until play). origin + enablejsapi are required for the unmute postMessage;
+  // iv_load_policy=3 kills annotations, modestbranding trims chrome.
+  const embed = `https://www.youtube-nocookie.com/embed/${RICK}` +
+    "?autoplay=1&mute=1&playsinline=1&rel=0&iv_load_policy=3&modestbranding=1" +
+    "&enablejsapi=1&origin=" + encodeURIComponent(env.SITE_ORIGIN);
   const f = escapeHtml(first);
   return `
 <div id="preroll" hidden>
@@ -588,6 +658,19 @@ function plink(p) {
   return `<a href="/@${encodeURIComponent(p.codename)}">${escapeHtml(p.display || p.codename)}</a>`;
 }
 
+// A deliberately opaque "compensation plan" rank. Blends downline size, reach,
+// and whether you're plugged into an upline — on purpose you can't tell which
+// one is carrying you. That's the MLM bit: is it better to have people under
+// you, or to be under someone big? Nobody will say.
+function mlmRank(ln) {
+  const score = (ln.downline || 0) * 3 + (ln.reach || 0) + (ln.parent ? 2 : 0);
+  const tiers = ["Prospect", "Associate", "Bronze Distributor", "Silver Distributor",
+    "Gold Distributor", "Platinum Executive", "Diamond Founder's Circle"];
+  let i = 0;
+  for (const t of [1, 5, 12, 25, 50, 100]) if (score >= t) i++;
+  return tiers[i];
+}
+
 function playerPage(env, row, photosKilled, lineage) {
   const name = escapeHtml(row.display);
   const first = row.display.split(" ")[0];
@@ -623,7 +706,11 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
   <div class="col-r">
     <div class="extnet"><strong>${escapeHtml(first)}</strong> is in the network now</div>
     <div class="box warm"><h2>Dossier</h2><div class="pad"><p>${escapeHtml(row.bio) || "No comment."}</p></div></div>
-    <div class="box"><h2>The chain</h2><div class="pad">${upline}${kids}${reach}</div></div>
+    <div class="box"><h2>The chain</h2><div class="pad">${upline}${kids}${reach}
+      <p class="tease">Compensation rank: <strong>${mlmRank(ln)}</strong>.
+      <span class="muted">Is it better to have a big downline, or to be plugged
+      into a big upline? Our proprietary plan will never tell you. Keep
+      recruiting to find out (you won&#39;t).</span></p></div></div>
     <div class="box warm"><h2>Roll the world</h2><div class="pad">
       <p>Every new visitor to your page eats ten seconds of Rick and scores you a
       point. Send it, or show your QR and let someone roll themselves.</p>
@@ -632,6 +719,25 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
       <span class="muted" id="shared" hidden>&nbsp;copied</span></p>
       <p class="muted"><a href="/leaderboard">The scoreboard</a> &middot;
       <a href="/stats">how it&#39;s spreading</a></p>
+    </div></div>
+    <div class="box"><h2>Recruit your downline</h2><div class="pad">
+      <p>The real money&#39;s in the network. Mint an invite, hand it to someone
+      promising, and when they claim they&#39;re in <strong>your</strong> downline
+      forever. You get <strong>${INVITE_CAP}</strong>. Officially.</p>
+      <p><button class="btn" id="invite" type="button">Mint an invite</button>
+      <span class="muted" id="invite-left"></span></p>
+      <div id="invite-out" hidden>
+        <p>Send this. First to claim it joins your downline:</p>
+        <p><a id="invite-link" href="#" class="tease"></a></p>
+        <div id="invite-qr" class="qrimg" style="max-width:12rem"></div>
+        <p><button class="btn" id="invite-copy" type="button">copy link</button>
+        <button class="btn" id="invite-more" type="button">mint another</button></p>
+      </div>
+      <p id="invite-err" class="busted" hidden></p>
+      <p class="muted">Codes get traded. People text them, shout them, screenshot
+      them. We pretend not to notice. We notice everything &mdash; every code&#39;s
+      whole provenance is logged, and the ledger drops when the game ends.
+      Creative cheating isn&#39;t punished, it&#39;s <em>scored</em>. Play dirty, play smart.</p>
     </div></div>
   </div>
 </div>
@@ -664,6 +770,39 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
     qc.addEventListener("click", function () { box.classList.remove("show"); });
     box.addEventListener("click", function (e) { if (e.target === box) box.classList.remove("show"); });
   }
+  var codename = ${JSON.stringify(row.codename)};
+  var ib = document.getElementById("invite");
+  if (ib) {
+    var iout = document.getElementById("invite-out");
+    var ierr = document.getElementById("invite-err");
+    var ilink = document.getElementById("invite-link");
+    var iqr = document.getElementById("invite-qr");
+    var ileft = document.getElementById("invite-left");
+    var mint = function () {
+      ierr.hidden = true; ib.disabled = true;
+      var key = ""; try { key = localStorage.getItem("rr26_mint_" + codename) || ""; } catch (e) {}
+      fetch("/api/invite", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ codename: codename, key: key }) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          ib.disabled = false;
+          if (d.ok) {
+            ilink.textContent = d.url; ilink.href = d.url;
+            iqr.innerHTML = d.qr; iout.hidden = false;
+            ileft.textContent = d.left > 0 ? (d.left + " official invites left") : "that was your last official one";
+          } else {
+            ierr.textContent = d.error || "no"; ierr.hidden = false;
+            if (d.capped) ib.style.display = "none";
+          }
+        }).catch(function () { ib.disabled = false; ierr.textContent = "network said no. try again."; ierr.hidden = false; });
+    };
+    ib.addEventListener("click", mint);
+    var imore = document.getElementById("invite-more");
+    if (imore) imore.addEventListener("click", mint);
+    var icopy = document.getElementById("invite-copy");
+    if (icopy) icopy.addEventListener("click", function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(ilink.textContent).catch(function () {});
+    });
+  }
 })();
 </script>${preRoll(env, row.codename, first)}`;
 }
@@ -686,7 +825,10 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
 </ol></div></div>
 <div class="box"><h2>Your dossier</h2><div class="pad">
 <p>${inviter} vouched for you. Your codename is <strong>${codename}</strong>.
-It is not negotiable.</p>
+It is not negotiable.</p>${row.minted_by
+  ? `<p><strong>${escapeHtml(row.minted_by)}</strong> recruited you into their
+     downline &mdash; their empire grows with yours. You can still name someone
+     else below; the ledger remembers who minted the code either way.</p>` : ""}
 <form id="claim">
   <p class="muted">Just a name gets you in. Everything else is optional.</p>
   <label>Name <input name="display" maxlength="40" required placeholder="what humans call you"
@@ -699,6 +841,7 @@ It is not negotiable.</p>
     placeholder="optional — so we can taunt you when you lose"></label>
   <label>Who roped you in? <input name="referrer" list="players" maxlength="60"
     autocapitalize="words" autocorrect="off" autocomplete="off"
+    value="${row.minted_by ? escapeHtml(row.minted_by) : ""}"
     placeholder="start typing their name — you join their chain">
     <span class="muted">optional, but joining a chain beats going it alone (that's where the reach bonus lives)</span></label>
   <datalist id="players">${options}</datalist>
@@ -740,7 +883,10 @@ each other.</p>
           turnstile: (form.querySelector('[name="cf-turnstile-response"]') || {}).value || ""
         })
       }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.ok) { location.href = d.page; }
+        if (d.ok) {
+          try { if (d.mintKey) localStorage.setItem("rr26_mint_" + d.codename, d.mintKey); } catch (e) {}
+          location.href = d.page;
+        }
         else { err.textContent = d.error || "no"; err.hidden = false; }
       }).catch(function () { err.textContent = "network said no. try again."; err.hidden = false; });
     };
