@@ -28,11 +28,16 @@ test("cleanBio strips urls and caps length", () => {
   assert.ok(cleanBio("a".repeat(500)).length <= 280);
 });
 
-test("cleanDisplay: printable ascii only, 40 max", () => {
+test("cleanDisplay: unicode names ok, control chars stripped, 40 max", () => {
   assert.equal(cleanDisplay("  Robert   Paulson "), "Robert Paulson");
   assert.equal(cleanDisplay("x".repeat(60)).length, 40);
-  assert.equal(cleanDisplay("<b>bold</b>"), "<b>bold</b>"); // allowed chars; escaped at render
-  assert.equal(cleanDisplay("emoji \u{1F600}"), null);
+  assert.equal(cleanDisplay("<b>bold</b>"), "<b>bold</b>"); // kept; escaped at render
+  assert.equal(cleanDisplay("José"), "José");              // accents ok
+  assert.equal(cleanDisplay("Zoë"), "Zoë");
+  assert.equal(cleanDisplay("名前"), "名前");                // non-latin ok
+  assert.equal(cleanDisplay("emoji \u{1F600}"), "emoji \u{1F600}"); // emoji ok now
+  assert.equal(cleanDisplay("bad\u0000null"), "badnull");   // control stripped
+  assert.equal(cleanDisplay("   "), null);
   assert.equal(cleanDisplay(""), null);
 });
 

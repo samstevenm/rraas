@@ -6,7 +6,6 @@
 // (e.g. "photon-rack"). 2-4 hyphen-separated lowercase parts.
 export const CODENAME_RE = /^[a-z0-9]+(-[a-z0-9]+){1,3}$/;
 export const TOKEN_RE = CODENAME_RE;
-export const DISPLAY_RE = /^[\x20-\x7E]{1,40}$/;    // printable ASCII, <=40
 export const BIO_MAX = 280;
 export const PHOTO_MAX_BYTES = 300 * 1024;
 
@@ -34,9 +33,14 @@ export function cleanBio(raw) {
   return s.slice(0, BIO_MAX);
 }
 
+// Allow real names in any script (José, Zoë, 名前) and even emoji — safety is
+// the escape-at-render layer, not a charset whitelist. Just strip control
+// characters, collapse whitespace, cap length, require something left.
 export function cleanDisplay(raw) {
-  const s = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 40);
-  return DISPLAY_RE.test(s) ? s : null;
+  const s = String(raw || "")
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+    .replace(/\s+/g, " ").trim().slice(0, 40);
+  return s.length ? s : null;
 }
 
 export function cleanEmail(raw) {
