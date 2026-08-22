@@ -27,9 +27,24 @@ database_id = "278d8863-d4d3-4b18-a945-4dcae654dbec"
 binding = "KV"
 id = "1e9fa46fefca4cfaaaef8b17fbc991cd"
 
+# Sandbox → live. Everything claimed before SEASON_START is a practice run;
+# the scheduled handler wipes all claims + rolls exactly once when the clock
+# crosses this instant (keeps the codes, so cards still work), then the real
+# season begins. 2026-08-31T06:00:00Z = midnight Mountain, start of 8/31 in
+# Denver. Change the instant here to move the go-live; the reset re-arms only
+# if you also clear the `season_started` flag (see RESET.md).
+[triggers]
+crons = ["*/15 * * * *"]
+
 [vars]
 SITE_ORIGIN = "https://rickroll.win"
 DS_ORIGIN = "https://rickroll.at.diligentservices.io"
 TURNSTILE_SITEKEY = "0x4AAAAAAEYGoMeDPsSSYYEP"
+SEASON_START = "2026-08-31T06:00:00Z"
+# Fixture pages that SURVIVE the go-live wipe (their practice scores still zero
+# out): the three crew seed tokens, so Sam/Pearl/Connor are on the board from
+# minute one without anyone re-seeding. Comma-separated tokens; empty = wipe
+# everything (no survivors).
+SEED_TOKENS = "3J5BXDSGZ5,6XPX03B8BE,BTT7G0F8C2"
 
 

@@ -14,6 +14,7 @@
 -->
 </head><body>
 <main>
+<div id="sandbox-note"></div>
 <p class="masthead">RACK &amp; ROLL '26 &middot; the scoreboard</p>
 <h1>We gamified the game.</h1>
 <div class="box warm"><h2>A confession</h2><div class="pad">
@@ -26,8 +27,8 @@
       how many new 'warm connections' i'd made" -->
 <p>Trade-show networking was always a numbers game: collecting warm
 connections nobody intends to call, mostly to show your friends. (The friends
-all grew up to be Salesforce admins.) We're just the first booth honest enough
-to put up the scoreboard.</p>
+all grew up to be Salesforce admins.) We&#39;re just the first ones honest enough
+to put the scoreboard up where everyone can see it.</p>
 </div></div>
 <div class="box"><h2>The recruiter race</h2><div class="pad">
 <table class="lb"><thead><tr><th>Recruiter</th><th class="n">Claims</th><th class="n">Cards out</th></tr></thead>
@@ -40,13 +41,16 @@ to put up the scoreboard.</p>
 <p class="muted" id="lb-extra"></p>
 <p class="muted" id="lb-updated"></p>
 </div></div>
-<div class="box warm"><h2>No taillight warranty</h2><div class="pad">
+<div class="box warm"><h2>No taillight warranty &mdash; rack and roll, baby</h2><div class="pad">
 <p>A taillight warranty lasts until the installer&#39;s taillights vanish down
-your driveway. Diligent Services is the opposite. We can&#39;t promise a system
-never goes down &mdash; nobody honest can. We promise to <strong>stay on</strong>:
-to keep it running, and to add your next special little request whenever the urge
-hits &mdash; during the punch walk, or twenty years out when it&#39;s finally time
-for something fresh.</p>
+your driveway. Diligent Services is the opposite &mdash; that&#39;s the whole joke
+in the name. <strong>Rack and roll, baby:</strong> we rack it, we roll on, we
+stay on. We can&#39;t promise a system never goes down &mdash; nobody honest can.
+What we can promise is that we don&#39;t vanish. This family has been doing this
+work in the trade for years, and we intend to keep doing it, so when you want the
+next special little request added &mdash; during the punch walk or long after
+&mdash; you call us. And on the rare day it&#39;s not something we can do, we&#39;ve
+been around long enough to point you to someone who can.</p>
 <p class="muted">The song under all this is a promise not to give up on someone
 and not to let them down. It&#39;s a joke. We&#39;re not.
 <a href="https://diligentservices.io/">diligentservices.io</a></p>
@@ -61,6 +65,12 @@ and not to let them down. It&#39;s a joke. We&#39;re not.
 fetch("/leaderboard.json", {cache: "no-store"})
   .then(function (r) { return r.json(); })
   .then(function (d) {
+    if (d.sandbox) {
+      var sb = document.getElementById("sandbox-note");
+      sb.className = "sandbox";
+      sb.innerHTML = "SANDBOX · the network goes live <strong>Aug 31</strong>. " +
+        "These are practice standings — the board wipes clean at go-live.";
+    }
     function row(cells, cls) {
       var tr = document.createElement("tr");
       cells.forEach(function (c, i) {

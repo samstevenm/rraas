@@ -50,7 +50,65 @@ export default {
       return new Response("the rack fell over. try again.", { status: 500 });
     }
   },
+
+  // Sandbox → live. Cron ticks every 15 min; the first tick at/after
+  // SEASON_START wipes every practice claim + roll (codes survive, cards keep
+  // working) and latches the `season_started` flag so the real season is never
+  // wiped again. No human, no AI, no terminal — it just happens.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(maybeStartSeason(env));
+  },
 };
+
+// Parse SEASON_START; true while we're still before it (the sandbox window).
+// Unset/unparseable => treat as already live (fail open to the real game).
+function beforeStart(env) {
+  const t = Date.parse(env.SEASON_START || "");
+  return Number.isFinite(t) && Date.now() < t;
+}
+
+// Shown on the interactive pages during the sandbox window so testers know
+// the slate wipes clean at go-live. Disappears on its own once we're live.
+function sandboxBanner(env) {
+  if (!beforeStart(env)) return "";
+  return `<div class="sandbox">SANDBOX &middot; practice run. Everything here ` +
+    `wipes clean when the network goes live <strong>Aug 31</strong>. Break it, ` +
+    `test it, have fun &mdash; nothing you do now counts yet.</div>`;
+}
+
+// Tokens that survive the go-live wipe as fixtures (crew seed pages). Their
+// claim stays; only their practice scores reset. Everyone else wipes clean.
+function seedTokens(env) {
+  return String(env.SEED_TOKENS || "").split(",")
+    .map((s) => s.trim()).filter(Boolean);
+}
+
+async function maybeStartSeason(env) {
+  const t = Date.parse(env.SEASON_START || "");
+  if (!Number.isFinite(t) || Date.now() < t) return;      // not yet
+  if (await flag(env, "season_started")) return;          // already done
+  const keep = seedTokens(env);
+  const ph = keep.map(() => "?").join(",");
+  const notIn = keep.length ? ` WHERE token NOT IN (${ph})` : "";
+  // One transaction: wipe every non-fixture claim (codes stay unclaimed so
+  // printed cards still work), zero the fixtures' practice scores, drop all
+  // rolls, and latch the flag — all-or-nothing so a partial failure can never
+  // leave the reset half-done or re-fire and wipe the live season every tick.
+  const stmts = [
+    env.DB.prepare(
+      `UPDATE tokens SET claimed_at=NULL, display=NULL, bio=NULL, company=NULL,
+         email=NULL, has_photo=0, busted=0, parent=NULL${notIn}`).bind(...keep),
+  ];
+  if (keep.length) {
+    stmts.push(env.DB.prepare(
+      `UPDATE tokens SET busted=0, parent=NULL WHERE token IN (${ph})`).bind(...keep));
+  }
+  stmts.push(env.DB.prepare("DELETE FROM rolls"));
+  stmts.push(env.DB.prepare(
+    `INSERT INTO flags (name,value) VALUES ('season_started','1')
+     ON CONFLICT(name) DO UPDATE SET value='1'`));
+  await env.DB.batch(stmts);
+}
 
 // ---- invite / claim ---------------------------------------------------------
 
@@ -323,6 +381,7 @@ async function leaderboard(req, env) {
     })),
     recruiters: recruiters.results || [],
     unclaimed_invitations: unclaimed ? unclaimed.n : 0,
+    sandbox: beforeStart(env),
   });
   const origin = req.headers.get("Origin") || "";
   const allow = origin === env.DS_ORIGIN ? origin : env.DS_ORIGIN;
@@ -372,7 +431,7 @@ async function stats(env) {
     `<tr><td>${escapeHtml(r.d)}</td><td class="n">${r.n}</td></tr>`).join("");
 
   const bodyHtml = `<main>
-<p class="masthead">RACK &amp; ROLL '26 &middot; how it's spreading</p>
+${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; how it's spreading</p>
 <h1>The propagation</h1>
 <div class="box warm"><h2>Right now</h2><div class="pad">
 <p><strong>${t.claimed}</strong> claimed of ${t.total} codes &middot;
@@ -506,7 +565,7 @@ function playerPage(env, row, photosKilled, lineage) {
     : `<p class="muted">You haven&#39;t roped anyone in yet. Hand out a code and tell them to name you.</p>`;
   const reach = `<p class="tease">Reach: <strong>${ln.reach}</strong> ${ln.reach === 1 ? "roll" : "rolls"} across a downline of <strong>${ln.downline}</strong>. The original chains run deepest.</p>`;
   return `<main>
-<p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
+${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
 <h1>${name}</h1>
 <div class="cols">
   <div class="col-l">
@@ -520,12 +579,34 @@ function playerPage(env, row, photosKilled, lineage) {
     <div class="extnet"><strong>${escapeHtml(first)}</strong> is in the network now</div>
     <div class="box warm"><h2>Dossier</h2><div class="pad"><p>${escapeHtml(row.bio) || "No comment."}</p></div></div>
     <div class="box"><h2>The chain</h2><div class="pad">${upline}${kids}${reach}</div></div>
-    <p class="tease">Share this page. Every visitor you roll is a point.
-    <a href="/leaderboard">The scoreboard</a> &middot; <a href="/stats">how it&#39;s spreading</a>.</p>
+    <div class="box warm"><h2>Roll the world</h2><div class="pad">
+      <p>Every new visitor to your page eats ten seconds of Rick and scores you a
+      point. So send it &mdash; text it, AirDrop it, drop it in your signature.</p>
+      <p><button class="btn" id="share" type="button">&#128279; Share my page</button>
+      <span class="muted" id="shared" hidden>&nbsp;copied to clipboard</span></p>
+      <p class="muted"><a href="/leaderboard">The scoreboard</a> &middot;
+      <a href="/stats">how it&#39;s spreading</a></p>
+    </div></div>
   </div>
 </div>
 <footer><p><a href="https://diligentservices.io/">a Diligent Services thing</a></p></footer>
-</main>${preRoll(env, row.codename, first)}`;
+</main>
+<script>
+(function () {
+  var url = ${JSON.stringify(`${env.SITE_ORIGIN}/@${row.codename}`)};
+  var btn = document.getElementById("share");
+  var ok = document.getElementById("shared");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var share = { title: "RACK & ROLL '26", text: "Someone thought you were interesting.", url: url };
+    if (navigator.share) { navigator.share(share).catch(function () {}); return; }
+    var flash = function () { ok.hidden = false; setTimeout(function () { ok.hidden = true; }, 2500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(flash, flash);
+    } else { flash(); }
+  });
+})();
+</script>${preRoll(env, row.codename, first)}`;
 }
 
 function claimPage(env, token, row, players) {
@@ -535,7 +616,7 @@ function claimPage(env, token, row, players) {
     `<option value="${escapeHtml(p.display || p.codename)}">${escapeHtml(p.codename)}</option>`
   ).join("");
   return `<main>
-<p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
+${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
 <h1>You're in. Sort of.</h1>
 <div class="box warm"><h2>The rules</h2><div class="pad"><ol>
 <li>You do not talk about RACK &amp; ROLL.</li>
@@ -548,12 +629,17 @@ function claimPage(env, token, row, players) {
 <p>${inviter} vouched for you. Your codename is <strong>${codename}</strong>.
 It is not negotiable.</p>
 <form id="claim">
-  <label>Name <input name="display" maxlength="40" required placeholder="what humans call you"></label>
+  <p class="muted">Just a name gets you in. Everything else is optional.</p>
+  <label>Name <input name="display" maxlength="40" required placeholder="what humans call you"
+    autocapitalize="words" autocorrect="off" autocomplete="name" enterkeyhint="next"></label>
   <label>Bio <textarea name="bio" maxlength="${BIO_MAX}" placeholder="${BIO_MAX} chars. Links are for LinkedIn."></textarea></label>
-  <label>Company <input name="company" maxlength="60" placeholder="optional"></label>
+  <label>Company <input name="company" maxlength="60" placeholder="optional"
+    autocapitalize="words" autocomplete="organization"></label>
   <label>Email <input name="email" type="email" maxlength="120"
+    autocapitalize="off" autocorrect="off" autocomplete="email" inputmode="email" spellcheck="false"
     placeholder="optional — so we can taunt you when you lose"></label>
   <label>Who roped you in? <input name="referrer" list="players" maxlength="60"
+    autocapitalize="words" autocorrect="off" autocomplete="off"
     placeholder="start typing their name — you join their chain">
     <span class="muted">optional, but joining a chain beats going it alone (that's where the reach bonus lives)</span></label>
   <datalist id="players">${options}</datalist>

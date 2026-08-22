@@ -13,6 +13,35 @@ Fastest moderation (no terminal) is **rickroll.win/admin.html** on your phone +
 the admin secret (keychain item `rr26-admin-secret`). Use the terminal for the
 bigger resets below.
 
+## Sandbox → go-live (automatic, Aug 31)
+
+Right now the game is a **sandbox**: hand the crew test codes, let people claim,
+roll, chain — break it freely. Every interactive page shows a "SANDBOX · wipes
+Aug 31" banner while we're before go-live.
+
+At **`SEASON_START`** (set in `wrangler.toml`, currently
+`2026-08-31T06:00:00Z` = midnight Mountain, start of 8/31 in Denver) the Worker's
+cron trigger fires and, exactly once, **wipes every practice claim and every
+roll** — the codes go back to unclaimed so the printed cards still work, and the
+real season begins. No terminal, no phone, no one has to remember: it just
+happens. It's a single atomic transaction and latches a `season_started` flag,
+so it can never re-fire and wipe the live board mid-show.
+
+**The three crew pages survive the wipe** (Sam / Pearl / Connor), so you're on
+the board from minute one — their practice *scores* zero out, their pages stay.
+That survivor list is `SEED_TOKENS` in `wrangler.toml`. Set it to `""` if you'd
+rather everyone (crew included) start from a truly blank board.
+
+To **move go-live**: edit `SEASON_START`, `bash tools/cfrun.sh wrangler deploy`.
+If go-live already fired and you need to reset the sandbox again, clear the latch:
+```
+bash tools/cfrun.sh wrangler d1 execute rr26 --remote -y --command \
+ "DELETE FROM flags WHERE name='season_started'"
+```
+then push SEASON_START back to a future instant (or run the big red button below
+by hand). To **disable the auto-wipe entirely**, remove the `[triggers]` block
+from `wrangler.toml` and redeploy.
+
 ## Check the state
 ```
 bash tools/cfrun.sh wrangler d1 execute rr26 --remote -y --command \

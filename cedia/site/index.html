@@ -21,7 +21,9 @@
 or type your code below. If you found this URL some other way: respect,
 but no.</p>
 <form action="/" method="get" onsubmit="var c=this.code.value.trim().toLowerCase().replace(/[\s_]+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,''); if(c) location.href='/'+encodeURIComponent(c); return false;">
-  <label>Your code <input name="code" maxlength="40" placeholder="your word-pair code, e.g. photon-rack"></label>
+  <label>Your code <input name="code" maxlength="40" placeholder="your word-pair code, e.g. photon-rack"
+    autofocus autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"
+    inputmode="text" enterkeyhint="go"></label>
   <button class="btn" type="submit">Present credentials &rarr;</button>
 </form>
 </div></div>

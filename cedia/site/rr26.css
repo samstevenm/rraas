@@ -35,6 +35,10 @@ h1 { font-size:1.6rem; margin-bottom:0.75rem; letter-spacing:0.02em; }
 .btn:hover { filter:brightness(1.15); }
 .muted { color:var(--muted); font-size:0.85rem; }
 .tease { margin-top:0.75rem; font-style:italic; }
+.sandbox { border:2px dashed var(--link); background:#12222a; color:var(--ink);
+           padding:0.55rem 0.7rem; margin-bottom:1rem; font-size:0.82rem;
+           letter-spacing:0.04em; }
+.sandbox strong { color:var(--link); }
 .busted { color:var(--hdr2); font-weight:bold; }
 footer { margin-top:1.25rem; border-top:1px solid var(--rule);
          padding-top:0.6rem; text-align:center; color:var(--muted);

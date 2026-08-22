@@ -18,8 +18,8 @@ with Claude. Good. Here's how to cheat without being a jerk.
 ## The one rule (break it and you're just a vandal)
 
 **Do not burn the codes.** Mass-claiming invitations that no human was handed
-ends the game for real people standing at a real booth. That's the single move
-that isn't funny. It's why claiming is gated by Turnstile: not to *stop* you —
+ends the game for real people who were actually handed a card. That's the single
+move that isn't funny. It's why claiming is gated by Turnstile: not to *stop* you —
 to make burning 900 codes tedious enough that it's not worth the story. Burn
 *one* code with genuine style and a good excuse? That's a party trick. Burn
 everyone's? You're the person who flips the board because they're losing Monopoly.

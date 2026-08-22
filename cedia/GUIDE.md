@@ -1,6 +1,11 @@
 # RACK & ROLL '26 — the crew playbook (internal)
 
-For Sam, Connor, and Pearl. Not for the booth wall. This is how the game runs.
+For Sam, Connor, and Pearl. Not for the show floor. This is how the game runs.
+
+**Until Aug 31 it's a sandbox.** Claim test codes, roll each other, try the
+"who roped you in?" chain, break whatever you can — every page shows a SANDBOX
+banner and the whole board wipes itself clean at go-live (your three crew pages
+survive; their scores reset). So practice hard now; none of it counts yet.
 
 ## The one-sentence version
 
