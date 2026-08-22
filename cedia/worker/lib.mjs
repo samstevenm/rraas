@@ -2,8 +2,10 @@
 // Server-side is the only side that counts: every cap and escape here is
 // enforced in the Worker regardless of what the client claims to have done.
 
-export const TOKEN_RE = /^[0-9A-HJKMNP-TV-Z]{10}$/; // Crockford base32, no I L O U
+// Codes are lighting/AV/tech WORD PAIRS: the code == the codename == the slug
+// (e.g. "photon-rack"). 2-4 hyphen-separated lowercase parts.
 export const CODENAME_RE = /^[a-z0-9]+(-[a-z0-9]+){1,3}$/;
+export const TOKEN_RE = CODENAME_RE;
 export const DISPLAY_RE = /^[\x20-\x7E]{1,40}$/;    // printable ASCII, <=40
 export const BIO_MAX = 280;
 export const PHOTO_MAX_BYTES = 300 * 1024;
@@ -14,12 +16,13 @@ export function escapeHtml(s) {
     .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-// Crockford-friendly normalization: uppercase, map the confusables the
-// alphabet excludes (labels are printed all-uppercase; humans type anything).
+// Accept whatever a human types for a word-pair code: "Photon Rack",
+// "photon_rack", "PHOTON-RACK" all normalize to "photon-rack". Domains and the
+// QR (uppercase, alphanumeric mode) are case-insensitive; we match lowercase.
 export function normToken(raw) {
-  const t = String(raw || "").trim().toUpperCase()
-    .replaceAll("O", "0").replaceAll("I", "1").replaceAll("L", "1")
-    .replace(/[^0-9A-Z]/g, "");
+  const t = String(raw || "").trim().toLowerCase()
+    .replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-").replace(/^-|-$/g, "");
   return TOKEN_RE.test(t) ? t : null;
 }
 

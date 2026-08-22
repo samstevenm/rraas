@@ -29,17 +29,21 @@ export default {
     }
     try {
       if (p === "/leaderboard.json") return leaderboard(req, env);
+      if (p === "/cheat") return cheat();
       if (p === "/roll.gif") return roll(req, env, ctx);
       if (p === "/api/claim" && req.method === "POST") return claim(req, env);
       if (p === "/api/admin" && req.method === "POST") return admin(req, env);
       if (p.startsWith("/@")) return playerRoutes(req, env, p.slice(2));
       if (p.startsWith("/photo/")) return photo(env, p.slice(7));
       if (p.startsWith("/avatar/")) return avatar(p.slice(8));
-      // /TOKEN or /i/TOKEN — multi-scan, single-claim: scanning is free forever
+      // /word-pair or /i/word-pair — multi-scan, single-claim: scanning is
+      // free forever, only a successful claim spends the code.
       const rawTok = p.startsWith("/i/") ? p.slice(3) : p.slice(1);
       const tok = normToken(rawTok);
       if (tok) return invite(env, tok);
-      if (/^\/[0-9A-Za-z]{6,14}$/.test(p)) return snarky404();
+      // a hyphenated path that isn't a valid code, or any /i/... miss, is a
+      // dead end; single-word paths fall through to static assets.
+      if (p.startsWith("/i/") || p.slice(1).includes("-")) return snarky404();
       return env.ASSETS.fetch(req);
     } catch (e) {
       return new Response("the rack fell over. try again.", { status: 500 });
@@ -461,9 +465,24 @@ async function flag(env, name) {
   return row && row.value === "1";
 }
 
+const SRC_WINK = `<!--
+  Oh — you view-source'd it. Or your agent did. Either way: hi.
+  Yes, you can cheat. The rolls ARE the game and the beacon is right there:
+    GET /roll.gif?who=<codename>
+  We cap it per IP per day and pin a "definitely not curl" badge on the
+  obvious ones, so the move isn't volume, it's *plausibility*. Pad yourself
+  into looking popular and we'll never say a word.
+  The ONE thing that isn't funny: burning the codes. Don't mass-claim
+  invitations no human was handed — that ends the game for real people, and
+  it's Turnstile-gated precisely to make doing it boring. Everything short of
+  that, we salute. House rules: /cheat  (yes, it's a real endpoint.)
+  -- the management
+-->`;
+
 function html(body, status = 200) {
   return new Response(
     `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+${SRC_WINK}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RACK &amp; ROLL '26</title>
 <link rel="stylesheet" href="/rr26.css">
@@ -479,6 +498,39 @@ function json(obj, status = 200) {
 }
 
 function jerr(status, error) { return json({ ok: false, error }, status); }
+
+function cheat() {
+  const body = [
+    "RACK & ROLL '26 -- HOUSE RULES OF CHEATING",
+    "",
+    "You found this. Of course you did. Here's the deal.",
+    "",
+    "FAIR GAME (we salute it):",
+    "  - Padding your own rolls. The beacon is GET /roll.gif?who=<your-codename>.",
+    "    It's capped per IP per day and it badges the obvious bots",
+    "    ('definitely not curl'). So the skill isn't a for-loop, it's staying",
+    "    believable. Look popular, not omnipotent.",
+    "  - Recruiting like your life depends on it.",
+    "  - Wearing the 'definitely not curl' badge like a medal. It is one.",
+    "",
+    "THE ONE RULE (break it and you're just a vandal):",
+    "  - Do NOT burn the codes. Mass-claiming invitations no human was handed",
+    "    ends the game for real people. That's why claiming is Turnstile-gated:",
+    "    not to stop you, to make it boring. If you can burn ONE code with style",
+    "    and a good story, fine. Burning everyone's is the one move that isn't",
+    "    funny.",
+    "",
+    "If you build a genuinely clever, bounded cheat: PR it.",
+    "  github.com/samstevenm/rraas  (PRs judged harshly, and lovingly.)",
+    "",
+    "-- Diligent Services. We can't promise nothing goes down. We stay on.",
+    "",
+  ].join("\n");
+  return new Response(body, {
+    headers: { "content-type": "text/plain; charset=utf-8",
+               "x-the-game": "you-are-now-playing", ...SEC_HEADERS },
+  });
+}
 
 function snarky404() {
   return html(`<main><h1>There is no page here.</h1>

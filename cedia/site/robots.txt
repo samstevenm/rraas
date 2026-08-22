@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# There is nothing interesting here. Definitely do not read /cheat.
+# That would be cheating. (It's fine. It's encouraged. Read /cheat.)
+Disallow: /cheat

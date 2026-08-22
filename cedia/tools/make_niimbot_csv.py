@@ -61,7 +61,7 @@ def main() -> int:
             w.writerow(["url", "code", "inviter", "codename"])
             for r in picked:
                 tok = r["token"]
-                w.writerow([f"HTTPS://{args.domain}/{tok}", tok,
+                w.writerow([f"HTTPS://{args.domain}/{tok.upper()}", tok,
                             inviter.upper(), r["codename"]])
         print(f"{inviter}: {len(picked)} rows -> {path}")
     print("\nNIIMBOT app: New Label -> add QR bound to `url`, text bound to "

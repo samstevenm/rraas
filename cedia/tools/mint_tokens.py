@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Mint RACK & ROLL '26 invite tokens + codenames. LOCAL ONLY.
+"""Mint RACK & ROLL '26 invite codes as lighting/AV/tech WORD PAIRS. LOCAL ONLY.
 
-Outputs (all gitignored — tokens never enter the public repo):
-  tokens.csv   token,inviter,codename          (the master list; goes to 1P)
-  seed.sql     INSERT statements for D1        (wrangler d1 execute --file)
+The code you hand out IS the codename IS the URL slug: "photon-rack" ->
+rickroll.win/photon-rack -> claim -> you're @photon-rack. Memorable, sayable,
+typeable, and crossable off a printed sheet even when a QR won't scan.
 
-Tokens: 10-char Crockford base32 (~50 bits) — multi-scan, single-claim is
-enforced by the Worker/D1, not here. Codenames: adjective-noun, PG-13 snark,
-pre-assigned so the leaderboard only ever shows server-owned slugs.
+Trade-off (by design, Sam's call): word pairs from a known vocabulary are
+human-guessable, unlike the old random tokens. Only pairs actually minted into
+D1 are valid (a guessed miss = snarky 404), and the claim form is gated by
+Turnstile + the kill switch — but a determined human could guess an unclaimed
+minted pair. Acceptable for a trade-show game; the kill switch cleans up.
 
-Usage: mint_tokens.py [--per-inviter 300] [--inviters sam,connor,pearl] [--out DIR]
+Outputs (gitignored): tokens.csv (token,inviter,codename — token == codename)
+and seed.sql (INSERTs for D1).
+
+Usage: mint_tokens.py [--per-inviter 300] [--inviters sam,connor,pearl]
 """
 from __future__ import annotations
 
@@ -18,39 +23,41 @@ import csv
 import secrets
 from pathlib import Path
 
-ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32
+# First word: quality / signal / lighting-AV-tech modifier.
+FIRST = """photon lumen kelvin lux chroma gamma phase ambient analog phantom
+warm cool tunable spectral infrared linear recessed flush grazing wallwash
+uplit backlit keyed diffuse focused calibrated aligned quiet dimmable wireless
+hardwired coax fiber gigabit latency hertz decibel matte gloss daylight halogen
+neon plasma dichroic fresnel beam flood spot wash pixel scanning motorized
+balanced phantom-power biamped daisy summed muted soloed gated compressed
+patched terminated shielded grounded looped buffered rendered mapped zoned
+scened ramped faded crossfaded strobed chased""".split()
 
-ADJECTIVES = """velvet polite feral discount ambient corduroy suspicious humble
-chrome haunted decaf turbo modest oblique caffeinated laminated sideways
-brushed municipal artisanal unlicensed diplomatic crispy phantom analog
-mahogany reluctant baroque understated tactical mint gilded off-brand
-low-voltage dimmable load-bearing color-corrected flush-mount rack-mounted
-patch-panel surge-protected""".split()
-
-NOUNS = """forklift mayhem chandelier gasket walkie sconce badger conduit
-crouton dimmer mullet gondola thermostat pelican fresco varmint pylon
-biscuit monsoon parka fixture breaker keypad woofer tweeter downlight
-pendant lumen ballast raceway grommet fader amplifier subwoofer soffit
-valance turntable riser truss""".split()
+# Second word: a piece of gear on a rack, wall, or truss.
+SECOND = """rack dimmer keypad driver ballast gateway processor amplifier
+subwoofer tweeter projector screen lens gobo truss conduit raceway gang relay
+contactor node hub switch router patchbay matrix encoder decoder transducer
+fixture sconce pendant downlight cove soffit fader console snake dongle bracket
+yoke shackle clamp anchor gland ferrule connector jack plug socket panel breaker
+transformer rectifier capacitor resistor diode heatsink chassis rackmount
+bezel grommet standoff pigtail whip homerun backbox mudring wallplate faceplate
+knob dial trimpot potentiometer""".split()
 
 
 def mint(per_inviter: int, inviters: list[str]):
-    combos = [f"{a}-{n}" for a in ADJECTIVES for n in NOUNS]
+    combos = [f"{a}-{n}" for a in FIRST for n in SECOND]
     need = per_inviter * len(inviters)
     if need > len(combos):
-        raise SystemExit(f"need {need} codenames, only {len(combos)} combos")
+        raise SystemExit(f"need {need} pairs, only {len(combos)} combos "
+                         f"({len(FIRST)}x{len(SECOND)})")
     rng = secrets.SystemRandom()
     rng.shuffle(combos)
-    seen_tokens: set[str] = set()
     rows = []
-    for i, inviter in enumerate(inviters):
-        for j in range(per_inviter):
-            while True:
-                tok = "".join(secrets.choice(ALPHABET) for _ in range(10))
-                if tok not in seen_tokens:
-                    seen_tokens.add(tok)
-                    break
-            rows.append((tok, inviter, combos[i * per_inviter + j]))
+    i = 0
+    for inviter in inviters:
+        for _ in range(per_inviter):
+            pair = combos[i]; i += 1
+            rows.append((pair, inviter, pair))  # token == codename
     return rows
 
 
@@ -63,9 +70,8 @@ def main() -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    gitignore = out / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("*\n")   # belt: the whole dir ignores itself
+    if not (out / ".gitignore").exists():
+        (out / ".gitignore").write_text("*\n")
 
     rows = mint(args.per_inviter, args.inviters.split(","))
 
@@ -80,8 +86,8 @@ def main() -> int:
             fh.write("INSERT INTO tokens (token, inviter, codename) VALUES "
                      f"('{tok}', '{inviter}', '{codename}');\n")
 
-    print(f"minted {len(rows)} tokens → {out}/tokens.csv + seed.sql")
-    print("next: store tokens.csv in 1Password; wrangler d1 execute rr26 --file seed.sql")
+    print(f"minted {len(rows)} word-pair codes ({args.per_inviter}/inviter) "
+          f"from {len(FIRST)}x{len(SECOND)} space -> {out}/tokens.csv + seed.sql")
     return 0
 
 

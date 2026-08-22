@@ -6,13 +6,13 @@ import {
   normToken, sniffJpeg, utcDay,
 } from "../worker/lib.mjs";
 
-test("normToken: crockford confusables + case", () => {
-  assert.equal(normToken("abcd2efg2h"), "ABCD2EFG2H");
-  assert.equal(normToken(" abcd2efg2h "), "ABCD2EFG2H");
-  assert.equal(normToken("ABCD2EFG2I"), "ABCD2EFG21");  // I -> 1
-  assert.equal(normToken("oBCD2EFG2L"), "0BCD2EFG21");  // O -> 0, L -> 1
-  assert.equal(normToken("short"), null);
-  assert.equal(normToken("UUUUUUUUUU"), null);           // U not in alphabet
+test("normToken: word-pair, case/space/underscore insensitive", () => {
+  assert.equal(normToken("photon-rack"), "photon-rack");
+  assert.equal(normToken("PHOTON RACK"), "photon-rack");
+  assert.equal(normToken("  Photon_Rack  "), "photon-rack");
+  assert.equal(normToken("kelvin-keypad-two"), "kelvin-keypad-two");
+  assert.equal(normToken("leaderboard"), null);  // single word -> not a code
+  assert.equal(normToken("rr26.css"), null);     // asset, no hyphen
   assert.equal(normToken(""), null);
 });
 
