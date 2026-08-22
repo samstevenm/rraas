@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RR26 ops</title>
+<link rel="stylesheet" href="/rr26.css">
+</head><body>
+<main>
+<p class="masthead">RR26 &middot; ops (secret required; phone-friendly on purpose)</p>
+<h1>The leash.</h1>
+<div class="box"><h2>Moderate</h2><div class="pad">
+<form id="f">
+  <label>Admin secret <input name="secret" type="password" required></label>
+  <label>Codename <input name="codename" placeholder="velvet-forklift (not needed for photo switch)"></label>
+  <label>Action
+    <select name="action">
+      <option value="hide">hide page</option>
+      <option value="unhide">unhide page</option>
+      <option value="nuke">nuke page + photo</option>
+      <option value="photos_off">GLOBAL photos OFF</option>
+      <option value="photos_on">global photos on</option>
+    </select>
+  </label>
+  <button class="btn" type="submit">Do it</button>
+  <p id="out" class="muted"></p>
+</form>
+</div></div>
+</main>
+<script>
+document.getElementById("f").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var fd = new FormData(ev.target);
+  fetch("/api/admin", {
+    method: "POST", headers: {"content-type": "application/json"},
+    body: JSON.stringify({secret: fd.get("secret"), codename: fd.get("codename"),
+                          action: fd.get("action")})
+  }).then(function (r) { return r.json(); })
+    .then(function (d) { document.getElementById("out").textContent = JSON.stringify(d); })
+    .catch(function () { document.getElementById("out").textContent = "request failed"; });
+});
+</script>
+</body></html>

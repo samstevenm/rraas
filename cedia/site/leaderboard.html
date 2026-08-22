@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RACK &amp; ROLL '26 — the scoreboard</title>
+<link rel="stylesheet" href="/rr26.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
+</head><body>
+<main>
+<p class="masthead">RACK &amp; ROLL '26 &middot; the scoreboard</p>
+<h1>We gamified the game.</h1>
+<div class="box warm"><h2>A confession</h2><div class="pad">
+<!-- COPY REVIEW (Sam): softened per the adversarial review. Your original
+     verbatim version is preserved below in this comment — restore it if you
+     disagree with the edit:
+     "just how i used to 'spit game' to girls at multi-city church camps
+      trying to collect as many numbers as possible with no intention of
+      calling them really, but mostly to show my friends [salesforce admins]
+      how many new 'warm connections' i'd made" -->
+<p>Trade-show networking was always a numbers game: collecting warm
+connections nobody intends to call, mostly to show your friends. (The friends
+all grew up to be Salesforce admins.) We're just the first booth honest enough
+to put up the scoreboard.</p>
+</div></div>
+<div class="box"><h2>The recruiter race</h2><div class="pad">
+<table class="lb"><thead><tr><th>Recruiter</th><th class="n">Claims</th><th class="n">Cards out</th></tr></thead>
+<tbody id="rec-body"><tr><td colspan="3">Counting&hellip;</td></tr></tbody></table>
+<p class="muted">claims, not cards — a photographed invitation buys you nothing, recruiter</p>
+</div></div>
+<div class="box"><h2>Players, by people rolled</h2><div class="pad">
+<table class="lb"><thead><tr><th>Player</th><th>Vouched by</th><th class="n">Rolls</th></tr></thead>
+<tbody id="lb-body"><tr><td colspan="3">Counting&hellip;</td></tr></tbody></table>
+<p class="muted" id="lb-extra"></p>
+<p class="muted" id="lb-updated"></p>
+</div></div>
+<footer><p>Static files and one Worker. PRs judged harshly:
+<a href="https://github.com/samstevenm/rraas">github.com/samstevenm/rraas</a>
+&middot; we do this to lighting too:
+<a href="https://diligentservices.io/">diligentservices.io</a></p></footer>
+</main>
+<script>
+/* textContent-only rendering — the same discipline the federated tab uses. */
+fetch("/leaderboard.json", {cache: "no-store"})
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    function row(cells, cls) {
+      var tr = document.createElement("tr");
+      cells.forEach(function (c, i) {
+        var td = document.createElement("td");
+        td.textContent = c;
+        if (cls && cls[i]) td.className = cls[i];
+        tr.appendChild(td);
+      });
+      return tr;
+    }
+    var rec = document.getElementById("rec-body");
+    rec.textContent = "";
+    (d.recruiters || []).sort(function (a, b) { return b.claims - a.claims; })
+      .forEach(function (r) {
+        rec.appendChild(row([r.inviter, String(r.claims), String(r.invitations)], [null, "n", "n"]));
+      });
+    var lb = document.getElementById("lb-body");
+    lb.textContent = "";
+    (d.players || []).forEach(function (p) {
+      var name = p.display + (p.busted ? " ⚠ definitely not curl" : "");
+      var tr = row([name, p.inviter, String(p.rolls)], [null, null, "n"]);
+      var a = document.createElement("a");
+      a.href = "/@" + encodeURIComponent(p.codename);
+      a.textContent = name;
+      tr.firstChild.textContent = "";
+      tr.firstChild.appendChild(a);
+      lb.appendChild(tr);
+    });
+    if (!(d.players || []).length) {
+      lb.appendChild(row(["nobody has claimed a codename yet. cowards.", "", ""]));
+    }
+    document.getElementById("lb-extra").textContent =
+      "unclaimed invitations: " + d.unclaimed_invitations + " — cowards.";
+    document.getElementById("lb-updated").textContent =
+      "counted as of " + d.updated + " · cheating is a form of playing, and we can tell";
+  })
+  .catch(function () {
+    document.getElementById("lb-body").textContent = "the scoreboard is sulking. refresh.";
+  });
+</script>
+</body></html>

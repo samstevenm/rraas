@@ -1,0 +1,31 @@
+# RACK & ROLL '26 — one Worker, static assets attached, D1 + KV bound.
+# Deploy-day fill-ins are marked FILLME (ids come from `wrangler d1 create` /
+# `wrangler kv namespace create`); secrets are set with `wrangler secret put`
+# (TURNSTILE_SECRET, ADMIN_SECRET) — never in this file.
+
+name = "rr26"
+main = "worker.mjs"
+compatibility_date = "2026-08-01"
+
+# With a binding configured, the Worker runs first and falls through to
+# assets via env.ASSETS.fetch — exactly what the router expects.
+[assets]
+directory = "../site"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rr26"
+database_id = "FILLME"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "FILLME"
+
+[vars]
+SITE_ORIGIN = "https://rickroll.win"
+DS_ORIGIN = "https://rickroll.at.diligentservices.io"
+TURNSTILE_SITEKEY = "FILLME"
+
+# custom domain is attached at deploy:
+#   wrangler deploy && (dashboard or API) route: rickroll.win/* -> rr26

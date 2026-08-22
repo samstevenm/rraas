@@ -1,0 +1,25 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RACK &amp; ROLL '26</title>
+<link rel="stylesheet" href="/rr26.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+</head><body>
+<main>
+<p class="masthead">RACK &amp; ROLL '26 &middot; an invitational</p>
+<h1>You don't get in from a browser.</h1>
+<div class="box warm"><h2>What this is</h2><div class="pad">
+<p>If someone handed you a card, they thought you were interesting. Scan it,
+or type your code below. If you found this URL some other way: respect,
+but no.</p>
+<form action="/" method="get" onsubmit="location.href='/'+this.code.value.trim().toUpperCase(); return false;">
+  <label>Your code <input name="code" maxlength="14" placeholder="the ten characters on the card"></label>
+  <button class="btn" type="submit">Present credentials &rarr;</button>
+</form>
+</div></div>
+<div class="box"><h2>Public record</h2><div class="pad">
+<p><a href="/leaderboard.html">The scoreboard</a> is public. Membership is not.</p>
+</div></div>
+<footer><p>you do not talk about RACK &amp; ROLL &middot;
+<a href="https://github.com/samstevenm/rraas">built from static files and one worker</a></p></footer>
+</main>
+</body></html>
