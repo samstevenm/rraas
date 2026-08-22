@@ -42,6 +42,35 @@ tests/     node --test suite for lib.mjs
 local/     gitignored: tokens.csv, seed.sql, label sheets — never committed
 ```
 
+## Minting the Cloudflare API token (as-driven 2026-08-21, ~5 minutes)
+
+Everything below deploys with ONE custom API token. Dashboard path:
+**My Profile → API Tokens → Create Token → Create Custom Token**.
+
+1. **Name** it (`rr26-cf-token` here) — name for the project, not the person.
+2. **Permissions** — seven rows; the middle dropdown filters as you type:
+   - Account · **Workers Scripts** · Edit (deploy the Worker)
+   - Account · **Workers KV Storage** · Edit (photo/dedup storage)
+   - Account · **D1** · Edit (the claim database)
+   - Account · **Turnstile** · Edit (create the bot-check site)
+   - Account · **Account Settings** · **Read** (lets wrangler find the
+     account id — the only Read in the set)
+   - Zone · **DNS** · Edit (the game domain's records)
+   - Zone · **Workers Routes** · Edit (attach the custom domain)
+3. **Zone Resources**: Include → **Specific zone** → the game domain only.
+   Never leave "All zones" on a token a machine will hold.
+4. **Client IP filtering**: optional; skip it if you'll deploy while
+   traveling.
+5. **TTL**: end date shortly after your event. A dead token is the best
+   token.
+6. **Continue to summary — and actually read it.** Ours was missing a row on
+   the first pass (a stray click had deleted it); the summary is the last
+   place you catch that. It should list every account permission AND the
+   zone line.
+7. **Create Token** → the secret shows ONCE. Straight into the password
+   manager (and wherever your automation reads secrets from); never into a
+   chat, a file, or a repo.
+
 ## Deploy (day-of runbook)
 
 ```
