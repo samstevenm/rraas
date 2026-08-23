@@ -236,12 +236,21 @@ async function claim(req, env) {
 
   // Chain parent: what the claimer typed wins; otherwise, if a player MINTED
   // this code for them, they default into that player's downline. (They can
-  // still name someone else — that mismatch is exactly the provenance we log.)
+  // still name someone else — the code's true origin stays in minted_by, so
+  // that trade is logged in the provenance ledger even though the chain follows
+  // who they named.)
+  const trow = await env.DB.prepare(
+    "SELECT minted_by, inviter FROM tokens WHERE token = ?").bind(token).first();
   let parent = body.parent ? await resolveParent(env, body.parent, token) : null;
-  if (!parent) {
-    const m = await env.DB.prepare(
-      "SELECT minted_by FROM tokens WHERE token = ?").bind(token).first();
-    if (m && m.minted_by) parent = m.minted_by;
+  if (!parent && trow && trow.minted_by) parent = trow.minted_by;
+  // Crew follows the chain: you belong to the crew of whoever roped you in, so
+  // "crew: X" and "roped in by (someone in X's crew)" never contradict. Only a
+  // lone-wolf claim (no parent) keeps the code's printed crew block.
+  let finalInviter = trow ? trow.inviter : null;
+  if (parent) {
+    const pc = await env.DB.prepare(
+      "SELECT inviter FROM tokens WHERE codename = ?").bind(parent).first();
+    if (pc && pc.inviter) finalInviter = pc.inviter;
   }
   const mintKey = randHex(16); // owner secret: gates minting from this device
 
@@ -262,9 +271,9 @@ async function claim(req, env) {
   // here no matter what the client said. Pages are immutable after this.
   const res = await env.DB.prepare(
     `UPDATE tokens SET claimed_at = datetime('now'), display = ?, bio = ?,
-       company = ?, email = ?, has_photo = ?, parent = ?, mint_key = ?
+       company = ?, email = ?, has_photo = ?, parent = ?, mint_key = ?, inviter = ?
      WHERE token = ? AND claimed_at IS NULL`
-  ).bind(display, bio, company, email || "", hasPhoto, parent, mintKey, token).run();
+  ).bind(display, bio, company, email || "", hasPhoto, parent, mintKey, finalInviter, token).run();
   if (!res.meta || res.meta.changes !== 1) {
     return jerr(409, "already claimed. first scan wins; that's rule zero");
   }
@@ -290,7 +299,7 @@ async function mintInvite(req, env) {
   const codename = String(body.codename || "");
   if (!CODENAME_RE.test(codename)) return jerr(400, "who are you again?");
   const me = await env.DB.prepare(
-    "SELECT mint_key, claimed_at FROM tokens WHERE codename = ?").bind(codename).first();
+    "SELECT mint_key, claimed_at, inviter FROM tokens WHERE codename = ?").bind(codename).first();
   if (!me || !me.claimed_at) return jerr(404, "claim a page before you recruit");
   const key = String(body.key || "");
   const owner = me.mint_key && key === me.mint_key;
@@ -308,14 +317,18 @@ async function mintInvite(req, env) {
         `however, keeping the receipts.)`,
     });
   }
-  // Atomic allocate: grab one unclaimed, unminted code for this player.
+  // Atomic allocate: grab one unclaimed, unminted code for this player and
+  // re-tag it to the minter's crew (inviter). A pool code carries whatever
+  // crew block it was printed into; once a player mints it, the recruit belongs
+  // to the minter's crew, not that block — otherwise "roped in by <minter>"
+  // and "crew: <someone else>" contradict each other.
   const alloc = await env.DB.prepare(
-    `UPDATE tokens SET minted_by = ?, minted_at = datetime('now')
+    `UPDATE tokens SET minted_by = ?, minted_at = datetime('now'), inviter = ?
      WHERE token IN (
        SELECT token FROM tokens
        WHERE claimed_at IS NULL AND minted_by IS NULL
        ORDER BY token LIMIT 1)
-     RETURNING token`).bind(codename).first();
+     RETURNING token`).bind(codename, me.inviter).first();
   if (!alloc || !alloc.token) {
     return json({ ok: false, error: "the invite drawer is empty. recruit the old-fashioned way: say a code out loud." });
   }
@@ -703,7 +716,7 @@ ${sandboxBanner(env)}<p class="masthead">RACK &amp; ROLL '26 &middot; an invitat
     <div class="box"><h2>${escapeHtml(row.codename)}</h2><div class="pad photo">${img}</div></div>
     <div class="box"><h2>Contact</h2><div class="pad">
       ${row.company ? `<p>${escapeHtml(row.company)}</p>` : ""}${vcf}
-      <p class="muted">invited by ${escapeHtml(row.inviter)}</p>${busted}
+      <p class="muted">crew: ${escapeHtml(row.inviter)}</p>${busted}
     </div></div>
   </div>
   <div class="col-r">
